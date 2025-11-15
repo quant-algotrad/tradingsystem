@@ -20,7 +20,7 @@ from .signal_aggregator import (
     get_aggregated_signal
 )
 
-from .trade_decision_engine import (
+from .decision_engine import (
     TradeAction,
     TradeRecommendation,
     TradeDecision,

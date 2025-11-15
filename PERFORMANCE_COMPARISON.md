@@ -390,10 +390,10 @@ Run these to see benchmarks on your Mac M4:
 
 ```bash
 # Benchmark threading (I/O-bound)
-python -m src.workers.market_data_worker_threaded benchmark
+python -m src.workers.market_worker_threaded benchmark
 
 # Benchmark multiprocessing (CPU-bound)
-python -m src.workers.signal_processor_multicore benchmark
+python -m src.workers.signal_multicore benchmark
 ```
 
 ---
@@ -401,6 +401,6 @@ python -m src.workers.signal_processor_multicore benchmark
 **Bottom Line:** Your current sequential approach is perfect for your use case (₹50k capital, 10-20 stocks). Only optimize if you scale to 50+ symbols or need sub-second latency.
 
 **If you decide to optimize:**
-- Use `market_data_worker_threaded.py` for data fetching (20x faster)
-- Use `signal_processor_multicore.py` for calculations (10x faster)
+- Use `market_worker_threaded.py` for data fetching (20x faster)
+- Use `signal_multicore.py` for calculations (10x faster)
 - Combined: 18x overall speedup!

@@ -567,14 +567,14 @@ Total (Critical Path)     10-20ms  30-50ms
 ```bash
 # Use threaded market data worker
 # 20x faster for 50+ symbols (10s → 500ms)
-python -m src.workers.market_data_worker_threaded
+python -m src.workers.market_worker_threaded
 ```
 
 #### Multiprocessing (CPU-bound: Calculations)
 ```bash
 # Use multicore signal processor
 # 10x faster for indicators (750ms → 75ms)
-python -m src.workers.signal_processor_multicore
+python -m src.workers.signal_multicore
 ```
 
 #### Hybrid Approach (Best Performance)

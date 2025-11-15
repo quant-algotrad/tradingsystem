@@ -43,7 +43,7 @@ from .base_indicator import (
 )
 
 # Trend indicators
-from .trend_indicators import (
+from .trend import (
     SMA,
     EMA,
     MACD,
@@ -51,13 +51,13 @@ from .trend_indicators import (
 )
 
 # Momentum indicators
-from .momentum_indicators import (
+from .momentum import (
     RSI,
     Stochastic
 )
 
 # Volatility indicators
-from .volatility_indicators import (
+from .volatility import (
     BollingerBands,
     ATR
 )

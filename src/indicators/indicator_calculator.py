@@ -14,9 +14,9 @@ from datetime import datetime
 
 from src.indicators.base_indicator import IIndicator
 from src.indicators.models import MultiIndicatorResult, IndicatorResult
-from src.indicators.trend_indicators import SMA, EMA, MACD, ADX
-from src.indicators.momentum_indicators import RSI, Stochastic
-from src.indicators.volatility_indicators import BollingerBands, ATR
+from src.indicators.trend import SMA, EMA, MACD, ADX
+from src.indicators.momentum import RSI, Stochastic
+from src.indicators.volatility import BollingerBands, ATR
 
 
 # ============================================

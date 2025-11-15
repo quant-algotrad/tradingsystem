@@ -232,7 +232,7 @@ These run on SEPARATE CPU cores automatically.
 
 ### 1. **Threaded Market Data Ingestion** (Already Created)
 
-**File:** `src/workers/market_data_worker_threaded.py`
+**File:** `src/workers/market_worker_threaded.py`
 
 ```python
 from concurrent.futures import ThreadPoolExecutor
@@ -253,14 +253,14 @@ class ThreadedMarketDataWorker:
 # Update docker-compose.yml
 services:
   market_data_ingestion:
-    command: ["python", "-m", "src.workers.market_data_worker_threaded"]
+    command: ["python", "-m", "src.workers.market_worker_threaded"]
 ```
 
 ---
 
 ### 2. **Multicore Signal Processing** (Already Created)
 
-**File:** `src/workers/signal_processor_multicore.py`
+**File:** `src/workers/signal_multicore.py`
 
 ```python
 from multiprocessing import Pool
@@ -281,7 +281,7 @@ class MultiCoreSignalProcessor:
 # Update docker-compose.yml
 services:
   signal_processor:
-    command: ["python", "-m", "src.workers.signal_processor_multicore"]
+    command: ["python", "-m", "src.workers.signal_multicore"]
 ```
 
 ---
@@ -393,7 +393,7 @@ Run the benchmark to see actual performance:
 
 ```bash
 # Benchmark threading vs sequential
-python -m src.workers.market_data_worker_threaded benchmark
+python -m src.workers.market_worker_threaded benchmark
 
 # Expected output:
 # Sequential:      10.2s
@@ -401,7 +401,7 @@ python -m src.workers.market_data_worker_threaded benchmark
 # Speedup:         20.4x
 
 # Benchmark multiprocessing vs sequential
-python -m src.workers.signal_processor_multicore benchmark
+python -m src.workers.signal_multicore benchmark
 
 # Expected output:
 # Sequential:      0.75s
@@ -421,11 +421,11 @@ python -m src.workers.signal_processor_multicore benchmark
 ### For 50+ Symbols:
 ✅ **Use threading for data fetching**
 - 50 symbols in 500ms vs 10s
-- File: `market_data_worker_threaded.py`
+- File: `market_worker_threaded.py`
 
 ✅ **Use multiprocessing for indicators**
 - 50 symbols in 75ms vs 750ms
-- File: `signal_processor_multicore.py`
+- File: `signal_multicore.py`
 
 ### For 100+ Symbols:
 ✅ **Use hybrid approach**
@@ -467,11 +467,11 @@ Only add threading/multiprocessing if:
 
 ## Files Created
 
-1. **src/workers/market_data_worker_threaded.py**
+1. **src/workers/market_worker_threaded.py**
    - Threading for concurrent API calls
    - 20x faster for 50+ symbols
 
-2. **src/workers/signal_processor_multicore.py**
+2. **src/workers/signal_multicore.py**
    - Multiprocessing for CPU-bound calculations
    - 10x faster for indicator processing
 

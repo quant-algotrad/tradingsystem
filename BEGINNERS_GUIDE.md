@@ -516,9 +516,9 @@ Like trying to call someone - if busy, try again; if doesn't answer, call altern
 
 **Files:**
 - `base_indicator.py` - Common code for all indicators
-- `trend_indicators.py` - SMA, EMA, MACD, ADX
-- `momentum_indicators.py` - RSI, Stochastic
-- `volatility_indicators.py` - Bollinger Bands, ATR
+- `trend.py` - SMA, EMA, MACD, ADX
+- `momentum.py` - RSI, Stochastic
+- `volatility.py` - Bollinger Bands, ATR
 
 **Indicators Explained Simply:**
 
@@ -605,7 +605,7 @@ Like asking 6 friends "Should I watch this movie?" - if 4 say yes, probably good
 
 ### 5. Trade Decision Engine
 
-**Location:** `src/strategy/trade_decision_engine.py`
+**Location:** `src/strategy/decision_engine.py`
 
 **What it does:** Converts signals into actual trade orders
 
@@ -1140,13 +1140,13 @@ tradingsystem/
 │   │
 │   ├── indicators/                  # Technical indicators
 │   │   ├── base_indicator.py        # Common code
-│   │   ├── trend_indicators.py      # MACD, ADX
-│   │   ├── momentum_indicators.py   # RSI, Stochastic
-│   │   └── volatility_indicators.py # Bollinger Bands, ATR
+│   │   ├── trend.py                 # MACD, ADX
+│   │   ├── momentum.py              # RSI, Stochastic
+│   │   └── volatility.py            # Bollinger Bands, ATR
 │   │
 │   ├── strategy/                    # Trading logic
 │   │   ├── signal_aggregator.py     # Combine indicators
-│   │   └── trade_decision_engine.py # Convert signals to trades
+│   │   └── decision_engine.py       # Convert signals to trades
 │   │
 │   ├── events/                      # Kafka messaging
 │   │   ├── event_types.py           # Event definitions
@@ -1235,7 +1235,7 @@ tradingsystem/
 - Falls back to alternate sources
 - **When to edit:** Adding new data sources
 
-**`src/indicators/trend_indicators.py`**
+**`src/indicators/trend.py`**
 - MACD, ADX calculations
 - **When to edit:** Adding new trend indicators
 
@@ -1244,7 +1244,7 @@ tradingsystem/
 - Weighted voting
 - **When to edit:** Changing indicator weights
 
-**`src/strategy/trade_decision_engine.py`**
+**`src/strategy/decision_engine.py`**
 - Converts signals to trade orders
 - Position sizing
 - Risk management
