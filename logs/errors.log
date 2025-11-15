@@ -1,0 +1,8 @@
+2025-11-15 09:56:25 | [31mERROR[0m | trading.test_module  | Error message - something went wrong
+2025-11-15 09:56:25 | [31mERROR[0m | trading.json_test    | Error occurred during processing
+2025-11-15 09:56:25 | [31mERROR[0m | trading.error_test   | Database connection failed
+2025-11-15 09:56:25 | [31mERROR[0m | trading.error_test   | Exception occurred: Invalid parameter value
+Traceback (most recent call last):
+  File "/home/user/tradingsystem/tests/test_logger.py", line 220, in test_error_logging
+    raise ValueError("Invalid parameter value")
+ValueError: Invalid parameter value

@@ -1,0 +1,25 @@
+2025-11-15 09:56:25 | DEBUG       | trading.test_module  | Debug message - detailed information
+2025-11-15 09:56:25 | [32mINFO[0m | trading.test_module  | Info message - general information
+2025-11-15 09:56:25 | [33mWARNING[0m | trading.test_module  | Warning message - something to watch
+2025-11-15 09:56:25 | [31mERROR[0m | trading.test_module  | Error message - something went wrong
+2025-11-15 09:56:25 | [1;34mTRADE[0m | trading.trades       | TRADE | BUY 10 RELIANCE.NS @ ₹2450.50 | strategy=TREND_RSI | reason=RSI oversold | confidence=85.0
+2025-11-15 09:56:25 | [1;34mTRADE[0m | trading.trades       | TRADE | SELL 5 TCS.NS @ ₹3200.75 | strategy=MEAN_REVERSION | reason=Bollinger upper band | pnl=1250.5
+2025-11-15 09:56:25 | [1;34mTRADE[0m | trading.trades       | TRADE | SHORT 15 INFY.NS @ ₹1450.25 | strategy=BREAKOUT | reason=Breakdown with volume
+2025-11-15 09:56:25 | [32mINFO[0m | trading.signals      | SIGNAL | RELIANCE.NS | BUY | Strength: 75.0 | indicator=RSI | value=28.5 | timeframe=1d
+2025-11-15 09:56:25 | [32mINFO[0m | trading.signals      | SIGNAL | TCS.NS | SELL | Strength: 82.0 | indicator=MACD | histogram=-2.5 | timeframe=1h
+2025-11-15 09:56:25 | [32mINFO[0m | trading.signals      | SIGNAL | INFY.NS | HOLD | Strength: 45.0 | indicator=BB | price_position=middle
+2025-11-15 09:56:25 | DEBUG       | trading.__main__     | fast_function completed in 11.21ms
+2025-11-15 09:56:25 | DEBUG       | trading.__main__     | slow_function completed in 51.09ms
+2025-11-15 09:56:25 | [32mINFO[0m | trading.__main__     | Calling calculate_something with args=(5, 10), kwargs={}
+2025-11-15 09:56:25 | [32mINFO[0m | trading.__main__     | calculate_something returned: int
+2025-11-15 09:56:25 | DEBUG       | trading.__main__     | Calling process_data with args=([1, 2, 3, 4, 5],), kwargs={}
+2025-11-15 09:56:25 | DEBUG       | trading.__main__     | process_data returned: int
+2025-11-15 09:56:25 | [32mINFO[0m | trading.json_test    | Testing structured logging with metadata
+2025-11-15 09:56:25 | [33mWARNING[0m | trading.json_test    | Warning with extra context
+2025-11-15 09:56:25 | [31mERROR[0m | trading.json_test    | Error occurred during processing
+2025-11-15 09:56:25 | [31mERROR[0m | trading.error_test   | Database connection failed
+2025-11-15 09:56:25 | [31mERROR[0m | trading.error_test   | Exception occurred: Invalid parameter value
+Traceback (most recent call last):
+  File "/home/user/tradingsystem/tests/test_logger.py", line 220, in test_error_logging
+    raise ValueError("Invalid parameter value")
+ValueError: Invalid parameter value
