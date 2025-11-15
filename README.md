@@ -12,6 +12,7 @@ A production-grade algorithmic trading system for Indian stock markets (NSE/BSE)
 
 ## 📋 Table of Contents
 - [Features](#-features)
+- [Beginner's Guide to Trading Concepts](#-beginners-guide-to-trading-concepts)
 - [Quick Start](#-quick-start)
 - [Architecture](#-architecture)
 - [Components](#-components)
@@ -50,6 +51,375 @@ A production-grade algorithmic trading system for Indian stock markets (NSE/BSE)
 - ✅ **Web Dashboard**: Real-time monitoring at http://localhost:8050
 - ✅ **No Cloud Costs**: 100% local deployment
 - ✅ **SOLID Principles**: Clean architecture with design patterns
+
+---
+
+## 📚 Beginner's Guide to Trading Concepts
+
+**New to algorithmic trading?** This section explains all the concepts in simple terms.
+
+### What is Algorithmic Trading?
+
+**Traditional Trading:**
+- You manually watch stock prices
+- You decide when to buy/sell based on charts
+- You execute trades yourself
+
+**Algorithmic Trading:**
+- Computer monitors prices 24/7
+- Algorithm analyzes data using mathematical formulas
+- System automatically suggests trades based on rules
+- You can execute trades automatically or review them first
+
+**This System:** Paper trading (simulation) - no real money at risk!
+
+### Core Trading Concepts
+
+#### 1. Long vs Short
+**Long (Buy):** You buy a stock hoping it goes UP
+- Buy RELIANCE at ₹2,500
+- Sell at ₹2,600
+- Profit: ₹100 per share
+
+**Short (Sell):** You sell a stock hoping it goes DOWN (not in this system yet)
+- Borrow and sell at ₹2,500
+- Buy back at ₹2,400
+- Profit: ₹100 per share
+
+#### 2. Stop Loss & Target
+**Entry:** Price where you buy the stock (₹100)
+**Stop Loss:** Price where you exit to limit loss (₹98) - "I'll only lose ₹2"
+**Target:** Price where you exit to take profit (₹106) - "I want to make ₹6"
+
+**Example:**
+```
+Buy RELIANCE at ₹2,500 (Entry)
+Stop Loss at ₹2,450 (-₹50 risk)
+Target at ₹2,650 (+₹150 profit)
+Risk:Reward = 50:150 = 1:3 (risk ₹1 to make ₹3)
+```
+
+#### 3. Position Sizing
+**Question:** How many shares should I buy?
+
+**Answer:** Based on risk tolerance
+- Capital: ₹50,000
+- Risk per trade: 1% = ₹500
+- Entry: ₹100, Stop: ₹98 (₹2 risk per share)
+- Position size: ₹500 ÷ ₹2 = 250 shares
+
+**Result:** If stop loss hits, you only lose ₹500 (1% of capital)
+
+### Technical Indicators Explained
+
+Technical indicators are mathematical calculations based on price and volume that help predict future price movements.
+
+#### RSI (Relative Strength Index)
+**What it measures:** Is the stock overbought or oversold?
+**Scale:** 0-100
+**How to read:**
+- **RSI < 30:** Oversold (stock might go UP soon) - BUY signal
+- **RSI > 70:** Overbought (stock might go DOWN soon) - SELL signal
+- **RSI 30-70:** Neutral (no clear signal)
+
+**Example:**
+```
+RELIANCE RSI = 25 → Stock has fallen a lot, might bounce back → BUY
+TCS RSI = 80 → Stock has risen a lot, might fall → SELL/AVOID
+INFY RSI = 50 → Neutral, wait for clearer signal
+```
+
+**How it works:**
+- Compares average gains vs average losses over 14 days
+- More gains = higher RSI (overbought)
+- More losses = lower RSI (oversold)
+
+#### MACD (Moving Average Convergence Divergence)
+**What it measures:** Momentum and trend direction
+**Components:**
+- **MACD Line:** Fast moving average - slow moving average
+- **Signal Line:** 9-day average of MACD line
+- **Histogram:** Distance between MACD and Signal
+
+**How to read:**
+- **MACD crosses above Signal:** Bullish (BUY signal)
+- **MACD crosses below Signal:** Bearish (SELL signal)
+- **Histogram growing:** Momentum increasing
+- **Histogram shrinking:** Momentum decreasing
+
+**Example:**
+```
+MACD: 5.2, Signal: 3.8
+MACD > Signal → Bullish → BUY
+
+MACD: 2.1, Signal: 4.5
+MACD < Signal → Bearish → SELL
+```
+
+#### Bollinger Bands (BB)
+**What it measures:** Volatility and price extremes
+**Components:**
+- **Middle Band:** 20-day moving average (average price)
+- **Upper Band:** Middle + (2 × standard deviation)
+- **Lower Band:** Middle - (2 × standard deviation)
+
+**How to read:**
+- **Price touches lower band:** Oversold → might go UP → BUY
+- **Price touches upper band:** Overbought → might go DOWN → SELL
+- **Bands narrow:** Low volatility, big move coming
+- **Bands wide:** High volatility, caution
+
+**Example:**
+```
+Price: ₹2,400
+Lower Band: ₹2,380
+Middle Band: ₹2,500
+Upper Band: ₹2,620
+
+Price near lower band → Oversold → BUY opportunity
+```
+
+#### ADX (Average Directional Index)
+**What it measures:** Strength of the trend (not direction!)
+**Scale:** 0-100
+**How to read:**
+- **ADX < 20:** Weak trend, range-bound market (don't trade)
+- **ADX 20-25:** Trend developing (watch closely)
+- **ADX > 25:** Strong trend (good for trading)
+- **ADX > 50:** Very strong trend (ride it!)
+
+**Example:**
+```
+RELIANCE ADX = 35 → Strong trend → Trade with confidence
+TCS ADX = 15 → Weak/no trend → Avoid, wait for better setup
+```
+
+**Important:** ADX doesn't tell you if trend is UP or DOWN, just how strong it is!
+
+#### Stochastic Oscillator
+**What it measures:** Where is current price relative to recent price range?
+**Scale:** 0-100
+**How to read:**
+- **Stoch < 20:** Oversold → BUY signal
+- **Stoch > 80:** Overbought → SELL signal
+- **%K crosses above %D:** Bullish crossover → BUY
+- **%K crosses below %D:** Bearish crossover → SELL
+
+**Example:**
+```
+Stock traded between ₹90-₹110 last 14 days
+Current price: ₹92
+Stochastic: 10% → Near bottom of range → Oversold → BUY
+```
+
+#### ATR (Average True Range)
+**What it measures:** Volatility (how much price moves on average)
+**Not a direction indicator!** Used for:
+1. **Stop loss placement:** Set stops based on volatility
+2. **Position sizing:** Reduce size in high volatility
+3. **Target setting:** Set realistic targets
+
+**How to use:**
+```
+RELIANCE ATR = ₹50 (stock moves ₹50/day on average)
+
+Stop Loss = Entry - (1.5 × ATR)
+Buy at ₹2,500 → Stop at ₹2,500 - ₹75 = ₹2,425
+
+High ATR = High risk = Smaller position size
+Low ATR = Low risk = Larger position size
+```
+
+### How the Trading Algorithm Works
+
+#### Step 1: Data Collection (Every 30 seconds during market hours)
+```
+Fetch latest price data for all stocks
+→ RELIANCE: ₹2,500.50
+→ TCS: ₹3,450.25
+→ INFY: ₹1,280.75
+```
+
+#### Step 2: Calculate Indicators
+```
+For RELIANCE at ₹2,500:
+→ RSI: 28 (oversold)
+→ MACD: 5.2 (above signal 3.8)
+→ BB: Price at lower band (₹2,480)
+→ ADX: 32 (strong trend)
+→ Stochastic: 22 (oversold)
+→ ATR: ₹45
+```
+
+#### Step 3: Generate Individual Signals
+Each indicator gives a vote:
+```
+RSI (28 < 30): BUY with 90% confidence (strongly oversold)
+MACD (bullish cross): BUY with 80% confidence
+Bollinger Bands (at lower): BUY with 85% confidence
+ADX (32): No direction, but confirms strong trend
+Stochastic (22): BUY with 75% confidence
+```
+
+#### Step 4: Aggregate Signals (Weighted Voting)
+```
+Indicator Votes (weights):
+- RSI (25%): BUY @ 90% → Contributes 22.5%
+- MACD (25%): BUY @ 80% → Contributes 20%
+- BB (20%): BUY @ 85% → Contributes 17%
+- ADX (15%): Neutral → Contributes 0%
+- Stoch (10%): BUY @ 75% → Contributes 7.5%
+- ATR (5%): Neutral → Contributes 0%
+
+Total Confidence: 67% BUY signal
+Consensus: 5 out of 6 indicators agree
+```
+
+#### Step 5: Decision Making
+```
+Confidence: 67% > 60% (minimum threshold) ✓
+Consensus: 83% > 60% ✓
+ADX: 32 > 25 (strong trend) ✓
+Decision: GENERATE BUY SIGNAL
+```
+
+#### Step 6: Calculate Trade Levels
+```
+Entry: ₹2,500 (current price)
+Stop Loss: ₹2,500 - (1.5 × ₹45 ATR) = ₹2,432
+Target: ₹2,500 + (3 × ₹68 risk) = ₹2,704
+Risk:Reward: 1:3 ✓
+```
+
+#### Step 7: Position Sizing
+```
+Capital: ₹50,000
+Risk per trade: 1% = ₹500
+Risk per share: ₹2,500 - ₹2,432 = ₹68
+Position size: ₹500 ÷ ₹68 = 7 shares
+Position value: 7 × ₹2,500 = ₹17,500
+```
+
+#### Step 8: Risk Validation
+```
+✓ Position value (₹17,500) < 20% of capital (₹10,000)
+✓ Risk (₹500) = 1% of capital
+✓ Total positions < 5 limit
+✓ No duplicate RELIANCE position
+✓ Market hours (9:15 AM - 3:30 PM)
+✓ No daily loss limit breach
+✓ Sector concentration < 40%
+
+ALL CHECKS PASSED → EXECUTE TRADE
+```
+
+#### Step 9: Trade Execution (Paper Trading)
+```
+BUY 7 shares of RELIANCE @ ₹2,500
+Total Investment: ₹17,500
+Stop Loss: ₹2,432 (-₹68/share = -₹476 total)
+Target: ₹2,704 (+₹204/share = +₹1,428 total)
+Risk: ₹476 (1% of capital)
+Potential Profit: ₹1,428
+Risk:Reward: 1:3
+```
+
+#### Step 10: Monitoring & Exit
+```
+System monitors position every 30 seconds:
+- If price ≤ ₹2,432 → SELL (stop loss hit, loss -₹476)
+- If price ≥ ₹2,704 → SELL (target hit, profit +₹1,428)
+- If signal reverses → SELL (exit early)
+```
+
+### Risk Management Explained
+
+#### 1% Risk Rule
+**Never risk more than 1% of capital on a single trade**
+
+**Why?**
+- You can have 10 losses in a row and only lose 10%
+- With 50% win rate, you'll still profit (due to 1:3 risk:reward)
+- Protects you from blowing up your account
+
+**Example:**
+```
+Capital: ₹50,000
+1% risk: ₹500 per trade
+
+10 losses: -₹5,000 (10%)
+10 wins: +₹15,000 (30% with 1:3 R:R)
+Net: +₹10,000 (20% profit with only 50% win rate!)
+```
+
+#### Position Limits
+**Max 5 positions at a time**
+
+**Why?**
+- Diversification (don't put all eggs in one basket)
+- Easier to monitor
+- Reduces correlation risk (all positions falling together)
+
+#### Daily Loss Limit
+**Max 5% loss per day, then stop trading**
+
+**Why?**
+- Prevents emotional revenge trading
+- Gives you time to analyze what went wrong
+- Protects capital from cascade failures
+
+#### Maximum Position Size
+**No position > 20% of capital**
+
+**Why?**
+- One bad trade can't destroy your account
+- Forces diversification
+- Reduces impact of black swan events
+
+### Common Questions
+
+**Q: Why do we use multiple indicators?**
+A: Each indicator has strengths and weaknesses. Combining them reduces false signals.
+
+**Q: What's a good win rate?**
+A: 50-60% is excellent! With 1:3 risk:reward, 40% win rate is still profitable.
+
+**Q: How much money do I need to start?**
+A: This system uses ₹50,000 virtual money for paper trading. Start with real money only after consistent profits in paper trading.
+
+**Q: What's the difference between swing and intraday trading?**
+A:
+- **Intraday:** Buy and sell same day (more risky, requires constant monitoring)
+- **Swing:** Hold for days/weeks (less risky, easier to manage)
+
+**Q: Why paper trading first?**
+A: Test strategies risk-free, learn the system, build confidence before risking real money.
+
+**Q: What if all indicators disagree?**
+A: System won't trade. We need >60% confidence and >60% consensus to execute.
+
+**Q: Can I lose more than my stop loss?**
+A: In paper trading, no. In real trading, gap downs can cause slippage, but it's rare.
+
+### Learning Path
+
+**Complete Beginner:**
+1. Read this guide fully
+2. Understand what each indicator measures
+3. Watch paper trades in dashboard
+4. See how algorithm makes decisions
+
+**Intermediate:**
+1. Study the 3 built-in strategies
+2. Understand when each works best
+3. Backtest on historical data
+4. Modify risk parameters
+
+**Advanced:**
+1. Create your own custom strategy
+2. Optimize indicator weights
+3. Add machine learning models
+4. Develop your edge
 
 ---
 
