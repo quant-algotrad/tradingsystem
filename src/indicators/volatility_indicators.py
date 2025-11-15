@@ -103,6 +103,8 @@ class BollingerBands(BaseIndicator):
             price = middle
 
         # Determine signal
+        threshold_crossed = None  # Initialize first
+
         if price >= upper:
             signal = SignalValue.SELL
             threshold_crossed = "upper_band"
