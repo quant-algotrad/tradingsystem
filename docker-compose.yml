@@ -179,7 +179,7 @@ services:
     networks:
       - trading_network
 
-  # Dashboard Service (Web UI for monitoring)
+  # Dashboard Service (Streamlit Web UI for monitoring)
   dashboard:
     build:
       context: .
@@ -189,8 +189,9 @@ services:
     depends_on:
       - redis
       - timescaledb
+      - kafka
     ports:
-      - "8050:8050"  # Dash/Plotly dashboard
+      - "8501:8501"  # Streamlit default port
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -199,10 +200,14 @@ services:
       - TIMESCALE_DB=trading_data
       - TIMESCALE_USER=trading
       - TIMESCALE_PASSWORD=trading123
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - PYTHONUNBUFFERED=1
+      - TZ=Asia/Kolkata
     volumes:
       - ./src:/app/src
       - ./config:/app/config
+      - ./logs:/app/logs
+    command: ["streamlit", "run", "src/dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
     restart: unless-stopped
     networks:
       - trading_network
