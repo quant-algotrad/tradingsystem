@@ -1,5 +1,12 @@
 version: '3.8'
 
+# ==================================================
+# SECURE Docker Compose Configuration
+# ==================================================
+# This version uses environment variables from .env file
+# NEVER hardcode secrets in docker-compose!
+# ==================================================
+
 services:
   # ========================================
   # Infrastructure Services
@@ -11,10 +18,16 @@ services:
     container_name: trading_redis
     platform: linux/arm64
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    # ⚠️ SECURITY: Redis with password (if set)
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -23,29 +36,44 @@ services:
     restart: unless-stopped
     networks:
       - trading_network
+    # ⚠️ SECURITY: Drop unnecessary capabilities
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
 
-  # TimescaleDB - Time-series optimized PostgreSQL (for market data)
+  # TimescaleDB - Time-series optimized PostgreSQL
   timescaledb:
     image: timescale/timescaledb:latest-pg15
     container_name: trading_timescaledb
     platform: linux/arm64
     ports:
-      - "5432:5432"
+      - "${TIMESCALE_PORT:-5432}:5432"
     environment:
-      POSTGRES_USER: trading
-      POSTGRES_PASSWORD: trading123
-      POSTGRES_DB: trading_data
+      # ⚠️ SECURITY: Load from .env file
+      POSTGRES_USER: ${TIMESCALE_USER}
+      POSTGRES_PASSWORD: ${TIMESCALE_PASSWORD}
+      POSTGRES_DB: ${TIMESCALE_DB}
+      # Additional security
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
     volumes:
       - timescale_data:/var/lib/postgresql/data
       - ./sql/init_timescale.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U trading"]
+      test: ["CMD-SHELL", "pg_isready -U ${TIMESCALE_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
     networks:
       - trading_network
+    # ⚠️ SECURITY: Read-only root filesystem (except data volume)
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
 
   # Kafka - Event streaming platform
   kafka:
@@ -65,12 +93,12 @@ services:
       KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      # Performance tuning for local use
+      # Performance tuning
       KAFKA_CFG_NUM_PARTITIONS: 3
       KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: 1
       KAFKA_CFG_MIN_INSYNC_REPLICAS: 1
       KAFKA_CFG_LOG_RETENTION_HOURS: 24
-      KAFKA_CFG_LOG_SEGMENT_BYTES: 104857600  # 100MB
+      KAFKA_CFG_LOG_SEGMENT_BYTES: 104857600
     volumes:
       - kafka_data:/bitnami/kafka
     healthcheck:
@@ -86,100 +114,7 @@ services:
   # Trading System Services
   # ========================================
 
-  # Market Data Ingestion Service (runs every minute for intraday)
-  market_data_ingestion:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.ingestion
-      platform: linux/arm64
-    container_name: trading_ingestion
-    depends_on:
-      - redis
-      - kafka
-      - timescaledb
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - TIMESCALE_HOST=timescaledb
-      - TIMESCALE_PORT=5432
-      - TIMESCALE_DB=trading_data
-      - TIMESCALE_USER=trading
-      - TIMESCALE_PASSWORD=trading123
-      - PYTHONUNBUFFERED=1
-      - TZ=Asia/Kolkata
-    volumes:
-      - ./src:/app/src
-      - ./config:/app/config
-      - ./data:/app/data
-      - ./logs:/app/logs
-    restart: unless-stopped
-    networks:
-      - trading_network
-
-  # Signal Processing Service (consumes market data, produces signals)
-  signal_processor:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.signals
-      platform: linux/arm64
-    container_name: trading_signals
-    depends_on:
-      - redis
-      - kafka
-      - timescaledb
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - TIMESCALE_HOST=timescaledb
-      - TIMESCALE_PORT=5432
-      - TIMESCALE_DB=trading_data
-      - TIMESCALE_USER=trading
-      - TIMESCALE_PASSWORD=trading123
-      - PYTHONUNBUFFERED=1
-      - TZ=Asia/Kolkata
-    volumes:
-      - ./src:/app/src
-      - ./config:/app/config
-      - ./logs:/app/logs
-    restart: unless-stopped
-    networks:
-      - trading_network
-
-  # Trade Execution Service (consumes signals, makes trade decisions)
-  trade_executor:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.executor
-      platform: linux/arm64
-    container_name: trading_executor
-    depends_on:
-      - redis
-      - kafka
-      - timescaledb
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - TIMESCALE_HOST=timescaledb
-      - TIMESCALE_PORT=5432
-      - TIMESCALE_DB=trading_data
-      - TIMESCALE_USER=trading
-      - TIMESCALE_PASSWORD=trading123
-      - PYTHONUNBUFFERED=1
-      - TZ=Asia/Kolkata
-      - PAPER_TRADING=true
-    volumes:
-      - ./src:/app/src
-      - ./config:/app/config
-      - ./data:/app/data
-      - ./logs:/app/logs
-    restart: unless-stopped
-    networks:
-      - trading_network
-
-  # Dashboard Service (Streamlit Web UI for monitoring)
+  # Dashboard Service
   dashboard:
     build:
       context: .
@@ -189,68 +124,39 @@ services:
     depends_on:
       - redis
       - timescaledb
-      - kafka
     ports:
-      - "8501:8501"  # Streamlit default port
+      - "${DASHBOARD_PORT:-8501}:8501"
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - TIMESCALE_HOST=timescaledb
-      - TIMESCALE_PORT=5432
-      - TIMESCALE_DB=trading_data
-      - TIMESCALE_USER=trading
-      - TIMESCALE_PASSWORD=trading123
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - PYTHONUNBUFFERED=1
-      - TZ=Asia/Kolkata
-    volumes:
-      - ./src:/app/src
-      - ./config:/app/config
-      - ./logs:/app/logs
-    command: ["streamlit", "run", "src/dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
-    restart: unless-stopped
-    networks:
-      - trading_network
+      # Database connections from .env
+      TIMESCALE_HOST: timescaledb
+      TIMESCALE_PORT: 5432
+      TIMESCALE_DB: ${TIMESCALE_DB}
+      TIMESCALE_USER: ${TIMESCALE_USER}
+      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD}
 
-  # Risk Monitor Service (monitors positions and limits)
-  risk_monitor:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.risk
-      platform: linux/arm64
-    container_name: trading_risk
-    depends_on:
-      - redis
-      - kafka
-      - timescaledb
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - TIMESCALE_HOST=timescaledb
-      - TIMESCALE_PORT=5432
-      - TIMESCALE_DB=trading_data
-      - TIMESCALE_USER=trading
-      - TIMESCALE_PASSWORD=trading123
-      - PYTHONUNBUFFERED=1
-      - TZ=Asia/Kolkata
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+
+      # Security
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG_MODE: ${DEBUG_MODE:-true}
+
     volumes:
-      - ./src:/app/src
-      - ./config:/app/config
+      - ./src:/app/src:ro  # Read-only source mount
       - ./logs:/app/logs
     restart: unless-stopped
     networks:
       - trading_network
-
-# ========================================
-# Networks
-# ========================================
-networks:
-  trading_network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.28.0.0/16
+    # ⚠️ SECURITY: Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
 # ========================================
 # Volumes
@@ -258,7 +164,17 @@ networks:
 volumes:
   redis_data:
     driver: local
-  kafka_data:
-    driver: local
   timescale_data:
     driver: local
+  kafka_data:
+    driver: local
+
+# ========================================
+# Networks
+# ========================================
+networks:
+  trading_network:
+    driver: bridge
+    # ⚠️ SECURITY: Enable encryption (overlay for production)
+    driver_opts:
+      encrypted: "true"
