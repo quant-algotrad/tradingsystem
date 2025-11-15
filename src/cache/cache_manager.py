@@ -74,10 +74,15 @@ class CacheManager:
             return
 
         try:
+            import os
+            # Get Redis host from environment (for Docker) or default to localhost
+            redis_host = os.getenv('REDIS_HOST', 'localhost')
+            redis_port = int(os.getenv('REDIS_PORT', '6379'))
+
             # Try to connect to Redis
             self._redis_client = redis.Redis(
-                host='localhost',
-                port=6379,
+                host=redis_host,
+                port=redis_port,
                 db=0,
                 decode_responses=False,  # We'll handle serialization
                 socket_connect_timeout=2,
