@@ -1,16 +1,22 @@
 # NON-AI TRADING SYSTEM - COMPLETE ARCHITECTURE
-## Indian Stock Market | Paper Trading Focus | Rule-Based System
+## Indian Stock Market | Paper + Live Trading | Rule-Based System
 
 ---
 
 ## SYSTEM OVERVIEW
 
-**System Type:** Rule-Based Algorithmic Trading System  
-**Market:** Indian Stocks (NSE/BSE)  
-**Mode:** Paper Trading (Simulated)  
-**Execution Frequency:** End-of-Day (EOD)  
-**Capital:** ₹1,00,000 (configurable)  
-**Technology Stack:** Python-based, SQLite database, Free APIs
+**System Type:** Rule-Based Algorithmic Trading System
+**Market:** Indian Stocks (NSE/BSE)
+**Mode:** Dual Mode - EOD + Intraday Trading
+**Execution Frequency:** Real-time monitoring (9:15 AM - 3:30 PM) + EOD
+**Capital:** ₹50,000 (minimum realistic starting capital)
+**Trading Styles:**
+- End-of-Day Swing Trading (hold days to weeks)
+- Intraday Trading with real-time stop-loss protection
+- Short selling (intraday MIS)
+- Basic options strategies (buying calls/puts, covered calls)
+**Technology Stack:** Python-based, SQLite database, Free APIs + Broker API
+**Cost:** ₹0 for paper trading | ₹2,000/month for live trading (broker API)
 
 ---
 
@@ -36,16 +42,25 @@
 
 **C. Data Types to Collect**
 - Historical OHLCV (Open, High, Low, Close, Volume)
+- **Multi-Timeframe Data:**
+  - Daily data: 2+ years history (EOD strategies)
+  - 1-hour data: 6 months history (swing trading)
+  - 15-minute data: 3 months history (intraday entries)
+  - 5-minute data: 1 month history (precise timing)
+  - 1-minute data: Optional, 7 days (for scalping experiments)
 - Corporate actions (splits, bonuses, dividends)
-- Current market price
+- Current market price (real-time via broker API)
 - 52-week high/low
 - Market cap and basic fundamentals
 
 **D. Data Storage Structure**
 - Historical data: Parquet files or SQLite tables
-- Naming convention: SYMBOL_YYYYMMDD.parquet
+- Naming convention: SYMBOL_INTERVAL_YYYYMMDD.parquet (e.g., RELIANCE_1d_20250115.parquet, RELIANCE_15m_20250115.parquet)
 - Minimum 2 years of daily data for each stock
-- Update mechanism: Daily after market close (3:30 PM IST)
+- Update mechanism:
+  - Daily data: After market close (3:30 PM IST)
+  - Intraday data: Real-time during market hours (9:15 AM - 3:30 PM)
+  - Live price: WebSocket streaming or 1-second polling
 
 **E. Data Quality Checks**
 - Missing data detection
@@ -87,8 +102,9 @@
 
 **B. Trades Table**
 - Complete trade history
-- Fields: trade_id (auto-increment), timestamp, symbol, action (BUY/SELL), quantity, price, gross_amount, brokerage, taxes, net_amount, reason/strategy_name, pnl_realized (for sells), trade_type (ENTRY/EXIT/PARTIAL)
+- Fields: trade_id (auto-increment), timestamp, symbol, action (BUY/SELL/SHORT/COVER), quantity, price, gross_amount, brokerage, taxes, net_amount, reason/strategy_name, pnl_realized (for sells), trade_type (ENTRY/EXIT/PARTIAL), position_type (DELIVERY/INTRADAY/OPTIONS), order_id (from broker), execution_status
 - Records both entry and exit
+- Supports short selling (SHORT = sell first, COVER = buy back)
 - Never delete records (audit trail)
 
 **C. Daily Portfolio Snapshot**
@@ -115,9 +131,39 @@
 
 **G. Market Data Cache**
 - Recent OHLCV data for quick access
-- Fields: symbol, date, open, high, low, close, volume, adjusted_close
-- Keep last 500 days per symbol
+- Fields: symbol, date, interval (1d/1h/15m/5m), open, high, low, close, volume, adjusted_close
+- Keep last 500 days per symbol (daily), 90 days (hourly), 30 days (15-min)
 - Faster than reading parquet files repeatedly
+
+**H. Intraday Positions Table (NEW)**
+- Track active intraday positions separately
+- Fields: position_id, symbol, entry_time, entry_price, quantity, position_type (LONG/SHORT), current_price, unrealized_pnl, stop_loss, target, trailing_stop, status (OPEN/CLOSED), exit_time, exit_price
+- Auto-squared by 3:20 PM if still open
+- Cleared daily after market close
+
+**I. Stop-Loss Tracker Table (NEW)**
+- Real-time stop-loss monitoring
+- Fields: tracker_id, symbol, position_type, entry_price, current_stop_loss, stop_type (FIXED/TRAILING/TIME_BASED), last_highest_price (for trailing), status (ACTIVE/HIT/CANCELLED), created_at
+- Updated every 5 seconds during market hours
+- Triggers auto-exit when stop hit
+
+**J. Options Positions Table (NEW)**
+- Track options trades
+- Fields: option_id, symbol, option_type (CALL/PUT), strike_price, expiry_date, entry_price (premium paid), quantity, lot_size, current_premium, unrealized_pnl, strategy_type (BUY_CALL/BUY_PUT/COVERED_CALL), entry_time, exit_time, exit_price
+- Calculate Greeks: Delta, Theta (time decay)
+- Track till expiry or exit
+
+**K. Multi-Timeframe Signals Table (NEW)**
+- Store signals from different timeframes
+- Fields: signal_id, symbol, timeframe (1d/1h/15m), signal_type, generated_at, indicator_values (JSON), alignment_score
+- Used for multi-timeframe confirmation
+- Helps identify high-probability setups
+
+**L. Order Queue Table (NEW)**
+- Queue for pending orders during market hours
+- Fields: order_id, symbol, order_type (MARKET/LIMIT/STOP_LOSS), side (BUY/SELL/SHORT/COVER), quantity, limit_price, stop_price, status (PENDING/SUBMITTED/FILLED/REJECTED/CANCELLED), created_at, filled_at, broker_order_id
+- Integrates with broker API
+- Retry mechanism for failed orders
 
 **Deliverables:**
 - Database schema SQL file
@@ -270,6 +316,101 @@
 
 ---
 
+**STRATEGY 5: INTRADAY BREAKDOWN SHORT (NEW)**
+
+**Logic:**
+- Identify key support level tested multiple times
+- Entry: Price breaks below support with volume spike
+- Confirmation: 15-min candle closes below support
+- Multi-timeframe: Hourly trend should be bearish
+
+**Exit Rules:**
+- Stop Loss: Above breakdown level (+1.5%)
+- Target 1: Next support level (50% position)
+- Target 2: -3% from entry (remaining 50%)
+- Auto-square: 3:15 PM if still open
+- Maximum hold: 4 hours
+
+**Risk-Reward:** Minimum 2:1
+
+**Position Type:** MIS (Margin Intraday Squareoff) - Short selling
+
+**Best For:** Intraday traders, bearish opportunities
+
+---
+
+**STRATEGY 6: MULTI-TIMEFRAME ALIGNMENT (NEW)**
+
+**Logic:**
+- Daily: Uptrend (price > 50 EMA)
+- 1-Hour: Pullback complete, RSI 40-50
+- 15-Min: Bullish reversal candle + volume spike
+- Entry: When all 3 timeframes align
+
+**Exit Rules:**
+- Stop Loss: Below 1-hour swing low (1.5-2%)
+- Target: Daily resistance or +4%
+- Trailing stop: After +2%, trail by 1%
+- Time-based: Exit if 15-min trend breaks
+
+**Risk-Reward:** Minimum 2:1
+
+**Position Type:** Can be DELIVERY or INTRADAY
+
+**Best For:** High-probability swing entries
+
+---
+
+**STRATEGY 7: OPTIONS - DIRECTIONAL CALL/PUT BUYING (NEW)**
+
+**Logic:**
+- Strong trend on daily + hourly charts
+- For CALL: Bullish breakout, RSI 55-65
+- For PUT: Bearish breakdown, RSI 35-45
+- Buy ATM or slightly OTM options
+- Minimum 7 days to expiry
+
+**Exit Rules:**
+- Stop Loss: 40% of premium paid (limited risk)
+- Target 1: 50% profit (exit 50% position)
+- Target 2: 100% profit (exit remaining)
+- Time decay: Exit 2 days before expiry if losing
+- Theta watch: If premium decaying >10%/day, review
+
+**Risk-Reward:** Minimum 1:1 (higher risk due to theta decay)
+
+**Position Type:** OPTIONS
+
+**Capital per trade:** ₹3,000 - ₹5,000 (limit total options exposure to 20% of capital)
+
+**Best For:** Leveraged directional bets with limited risk
+
+---
+
+**STRATEGY 8: COVERED CALL (INCOME GENERATION) - (NEW)**
+
+**Logic:**
+- Own stock in delivery (from swing trades)
+- Stock is range-bound or mildly bullish
+- Sell OTM call option (strike 3-5% above current price)
+- Collect premium as income
+
+**Exit Rules:**
+- If stock stays below strike: Keep premium + stock
+- If stock called away: Profit on stock + premium
+- Buyback call if: Stock turns very bullish (lose opportunity cost)
+- Roll over: Buy back current, sell next month
+
+**Risk-Reward:** Limited profit (premium + stock appreciation to strike), downside risk on stock
+
+**Position Type:** DELIVERY stock + SELL CALL option
+
+**Capital requirement:** Already own the stock
+
+**Best For:** Generating extra income from holdings, sideways markets
+
+---
+
 **Strategy Component Structure:**
 
 Each strategy module must have:
@@ -361,6 +502,63 @@ Each strategy module must have:
 
 ---
 
+### 2.4 MULTI-TIMEFRAME ANALYSIS ENGINE (NEW)
+
+**Purpose:** Analyze stocks across multiple timeframes for high-probability setups
+
+**Components:**
+
+**A. Timeframe Manager**
+- Fetch and sync data across timeframes: Daily, 1-Hour, 15-Minute, 5-Minute
+- Ensure data alignment (timestamps match)
+- Handle missing candles (market holidays, low volume periods)
+
+**B. Indicator Calculation Across Timeframes**
+- Calculate same indicators on all timeframes:
+  - Daily: Long-term trend (50/200 EMA, weekly support/resistance)
+  - 1-Hour: Intermediate trend (20/50 EMA, swing highs/lows)
+  - 15-Minute: Short-term momentum (RSI, MACD for entries)
+  - 5-Minute: Precise entry timing (breakout confirmation)
+
+**C. Timeframe Alignment Checker**
+- Top-Down Analysis:
+  1. Check daily trend (bullish/bearish/neutral)
+  2. Check hourly pullback/continuation
+  3. Check 15-min entry signal
+  4. Calculate alignment score (0-100%)
+- Only trade when alignment > 70%
+
+**D. Multi-Timeframe Signal Generator**
+- Generate separate signals per timeframe
+- Store in Multi-Timeframe Signals Table
+- Combine into unified high-confidence signal
+- Example:
+  - Daily: Bullish (score: 0.8)
+  - 1-Hour: Bullish pullback complete (score: 0.9)
+  - 15-Min: Breakout with volume (score: 0.85)
+  - Combined Score: 0.85 → HIGH confidence BUY
+
+**E. Divergence Detection**
+- Identify timeframe conflicts (warning signs)
+- Example: Daily bullish but hourly showing bearish divergence
+- Flag as "mixed signals" - avoid or reduce position size
+
+**F. Dynamic Stop-Loss Selection**
+- Choose stop level from appropriate timeframe:
+  - Swing trade: Use daily or 4-hour low
+  - Intraday trade: Use 1-hour or 15-min low
+  - Scalp: Use 5-min low
+- Tighter stops = more whipsaws but better R:R
+
+**Deliverables:**
+- Multi-timeframe data fetcher
+- Timeframe synchronization module
+- Alignment calculator
+- Divergence detector
+- Multi-TF strategy templates
+
+---
+
 ## PHASE 3: RISK MANAGEMENT LAYER (Week 5-6)
 
 ### 3.1 POSITION SIZING ENGINE
@@ -372,9 +570,10 @@ Each strategy module must have:
 **A. Fixed Percentage Risk Model**
 - Risk per trade: 1% of total capital (configurable 0.5-2%)
 - Formula: Position Size = (Account Risk Amount) / (Entry Price - Stop Loss)
-- Example: Capital ₹1,00,000, Risk 1% = ₹1,000
+- Example: Capital ₹50,000, Risk 1% = ₹500
   - Entry: ₹500, Stop Loss: ₹490, Risk per share: ₹10
-  - Position size: ₹1,000 / ₹10 = 100 shares
+  - Position size: ₹500 / ₹10 = 50 shares (₹25,000 capital deployed)
+- For ₹50k capital: Max 2-3 swing positions, 1-2 intraday positions simultaneously
 
 **B. Maximum Position Size Caps**
 - No single position > 20% of total capital
@@ -440,9 +639,28 @@ Each strategy module must have:
 - May pause trading for strategy reassessment
 
 **E. Position Limits**
-- Maximum open positions: 8-10 stocks
-- Maximum positions per sector: 3-4 stocks
-- Diversification requirement: Minimum 3 sectors
+- Maximum open positions (Swing): 3-4 stocks (for ₹50k capital)
+- Maximum open positions (Intraday): 1-2 stocks simultaneously
+- Maximum positions per sector: 2 stocks (for ₹50k)
+- Diversification requirement: Minimum 2 sectors
+- Total capital deployed: Maximum 80% (keep 20% cash buffer)
+
+**E1. Intraday-Specific Limits (NEW)**
+- Maximum intraday loss: 2% of capital (₹1,000 for ₹50k)
+- Maximum intraday positions: 2 simultaneous
+- Auto-square all positions: 3:15 PM
+- No new intraday trades after: 2:30 PM
+- Maximum trades per session: 3-4 intraday trades
+- Cooldown after loss: Skip next trade if 2 consecutive losses
+- MIS margin usage: Maximum 3x leverage (conservative)
+
+**E2. Options-Specific Limits (NEW)**
+- Maximum options capital: 20% of total (₹10,000 for ₹50k)
+- Maximum per option trade: ₹5,000 premium
+- Maximum open options: 2 contracts
+- Minimum days to expiry: 7 days (avoid theta decay)
+- Stop loss: 40-50% of premium paid
+- No naked selling (only covered calls allowed)
 
 **F. Drawdown Protections**
 - Current drawdown from peak: Track continuously
@@ -521,18 +739,44 @@ Each strategy module must have:
 
 ## PHASE 4: EXECUTION LAYER (Week 7-8)
 
-### 4.1 PAPER TRADING ENGINE
+### 4.1 DUAL-MODE TRADING ENGINE (PAPER + LIVE)
 
-**Purpose:** Simulate real trading without actual money
+**Purpose:** Execute trades in both simulated and live modes
+
+**Modes:**
+
+**MODE 1: Paper Trading (Free)**
+- No broker API needed
+- Simulated execution
+- Perfect for testing strategies
+- Zero cost
+
+**MODE 2: Live Trading (₹2,000/month)**
+- Requires broker API (Zerodha/Upstox/Fyers)
+- Real order execution
+- Real money at risk
+- Start with small capital first
 
 **Components:**
 
-**A. Simulated Order Execution**
-- Order types: Market orders (use closing price)
-- Execution price: EOD closing price
-- Slippage simulation: Add 0.1% slippage to market orders
-- Partial fills: Not applicable for EOD trading
-- Order rejection scenarios: Circuit limits, insufficient funds
+**A. Order Execution Engine**
+- **Order types supported:**
+  - MARKET: Execute at best available price
+  - LIMIT: Execute only at specified price or better
+  - STOP-LOSS: Trigger when price hits stop level
+  - BRACKET: Entry + SL + Target in single order
+- **Position types:**
+  - DELIVERY (CNC): Swing trades, held overnight
+  - INTRADAY (MIS): Auto-squared by 3:20 PM, margin available
+  - OPTIONS: Call/Put buying, covered calls
+- **Execution logic:**
+  - Paper mode: Use live price + slippage (0.1%)
+  - Live mode: Send to broker API, wait for confirmation
+  - Track order status: PENDING → SUBMITTED → FILLED/REJECTED
+- **Short selling support:**
+  - Intraday MIS: SHORT → COVER (within same day)
+  - Validate sufficient margin
+  - Auto-square by 3:15 PM
 
 **B. Portfolio State Manager**
 - Track cash balance
@@ -598,9 +842,28 @@ Each strategy module must have:
 - Check API connectivity
 - Load watchlist stocks
 
-**Market Hours (9:15 AM - 3:30 PM):**
-- No action (EOD system)
-- Optional: Monitor for breaking news
+**Market Hours (9:15 AM - 3:30 PM) - REAL-TIME MONITORING (NEW):**
+
+**Continuous Loop (Every 5 seconds):**
+- Fetch live prices for all holdings + watchlist
+- Update Intraday Positions Table with current prices
+- Check stop-loss triggers for all positions
+- Check target triggers for partial exits
+- Monitor trailing stops (update dynamically)
+- Scan for intraday entry signals (Strategy 5, 6)
+- Check risk limits before new entries
+- Execute orders when conditions met
+- Log all activities
+
+**Key Activities:**
+- **9:15-9:30 AM:** Market opening volatility - observe, no trades
+- **9:30-11:30 AM:** Primary trading window - execute intraday entries
+- **11:30 AM-2:00 PM:** Manage positions, trail stops
+- **2:00-2:30 PM:** Last entry window for intraday trades
+- **2:30-3:00 PM:** No new entries, only manage exits
+- **3:00-3:15 PM:** Prepare to square-off losing intraday positions
+- **3:15-3:20 PM:** AUTO-SQUARE all remaining intraday (MIS) positions
+- **3:20-3:30 PM:** Final price capture, swing position monitoring
 
 **Post-Market Routine (After 3:30 PM):**
 
@@ -660,7 +923,186 @@ Each strategy module must have:
 
 ---
 
-### 4.3 MONITORING & ALERTS
+### 4.3 REAL-TIME STOP-LOSS PROTECTION (NEW)
+
+**Purpose:** Automatically exit positions when stop-loss levels are hit during market hours
+
+**Critical Importance:** Prevents catastrophic losses from gap-downs, news events, sudden crashes
+
+**Components:**
+
+**A. Stop-Loss Monitor (Continuous)**
+- Runs every 5 seconds during market hours (9:15 AM - 3:30 PM)
+- Fetches current price for all open positions
+- Compares against stop-loss levels
+- Triggers immediate exit if stop hit
+- Updates Stop-Loss Tracker Table
+
+**B. Stop-Loss Types Supported**
+
+**1. Fixed Stop-Loss:**
+```
+Entry: ₹500, Stop: ₹490
+Exit immediately if price touches ₹490
+```
+
+**2. Trailing Stop-Loss:**
+```
+Entry: ₹500, Trail: ₹10
+Price → Stop Level
+₹500 → ₹490
+₹510 → ₹500 (moves up with profit)
+₹515 → ₹505
+₹512 → ₹505 (doesn't move down)
+₹505 → EXIT triggered
+```
+
+**3. Percentage-Based Stop:**
+```
+Entry: ₹500, Stop: 2%
+Stop level: ₹490
+Auto-adjusts if position averaged down/up
+```
+
+**4. ATR-Based Stop (Volatility Adjusted):**
+```
+Entry: ₹500, ATR: ₹15
+Stop: Entry - (2 × ATR) = ₹470
+Wider for volatile stocks, tighter for stable
+```
+
+**5. Time-Based Stop:**
+```
+Entry: 10:30 AM, Max hold: 2 hours
+Exit at 12:30 PM regardless of profit/loss
+Prevents holding through lunch volatility
+```
+
+**C. Stop-Loss Execution Logic**
+- Detect: Price <= Stop Level
+- Validate: Check if real (not a wick/flash crash)
+- Execute: Place MARKET order immediately
+- Confirm: Wait for order fill
+- Update: Mark position as CLOSED
+- Alert: Send notification with exit price & P/L
+- Log: Record in trades table with reason "STOP_LOSS_HIT"
+
+**D. Stop-Loss Slippage Protection**
+- In volatile markets, execution may be worse than stop
+- Example: Stop at ₹490, but filled at ₹485 (₹5 slippage)
+- Mitigation:
+  - Use STOP-LIMIT orders (limit max slippage to 0.5%)
+  - For fast-moving stocks, accept market orders
+  - Monitor slippage % per trade
+
+**E. Partial Stop-Loss**
+- Exit 50% at initial stop
+- Trail remaining 50% for bigger gains
+- Reduces total loss while keeping upside
+
+**F. Stop-Loss Overrides (Manual)**
+- Emergency stop: Close all positions immediately
+- Pause stops: During known volatility (RBI policy, Budget)
+- Adjust stops: Widen/tighten based on conditions
+
+**G. Weekend/Holiday Protection**
+- For swing positions held over weekend:
+  - Tighter stops on Friday
+  - Avoid holding through major events
+  - Options: Exit before weekend if gap risk high
+
+**Deliverables:**
+- Real-time price monitoring daemon
+- Stop-loss calculation engine
+- Trailing stop updater
+- Auto-exit execution module
+- Slippage tracker
+- Alert system for stops hit
+
+---
+
+### 4.4 BROKER API INTEGRATION (NEW)
+
+**Purpose:** Connect to broker for live trading and real-time data
+
+**Supported Brokers:**
+
+**Option 1: Zerodha Kite Connect (Recommended)**
+- Cost: ₹2,000/month
+- Features: Full API access, WebSocket streaming, Options support
+- Reliability: Very high
+- Documentation: Excellent
+
+**Option 2: Upstox API**
+- Cost: ₹2,000/month
+- Features: Similar to Zerodha
+- Reliability: Good
+- Documentation: Good
+
+**Option 3: Fyers API**
+- Cost: ₹1,500/month
+- Features: Good for intraday
+- Reliability: Moderate
+- Documentation: Average
+
+**Components:**
+
+**A. Authentication Module**
+- Store API key and secret securely
+- Generate access token daily
+- Handle token expiry and refresh
+- Secure credential storage (encrypted)
+
+**B. Order Placement Module**
+- Place BUY/SELL/SHORT/COVER orders
+- Support MARKET, LIMIT, STOP-LOSS, BRACKET orders
+- Get order confirmation and order ID
+- Handle order rejection gracefully
+- Retry failed orders (with limits)
+
+**C. Live Data Feed**
+- WebSocket connection for real-time quotes
+- Subscribe to watchlist stocks
+- Update database every tick/5 seconds
+- Fallback to HTTP polling if WebSocket fails
+- Handle reconnection on disconnection
+
+**D. Position Reconciliation**
+- Fetch current positions from broker
+- Compare with local database
+- Identify discrepancies
+- Alert on mismatch
+- Auto-sync on startup
+
+**E. Order Status Tracking**
+- Poll order status: PENDING/OPEN/COMPLETE/REJECTED/CANCELLED
+- Update Order Queue Table
+- Retry if pending for too long
+- Cancel stale orders
+
+**F. Error Handling**
+- Network failures: Retry with exponential backoff
+- API rate limits: Queue requests, throttle
+- Order rejections: Log reason, alert user
+- Data feed loss: Switch to backup feed
+
+**G. Failsafe Mechanisms**
+- Max API calls per second: 10
+- Circuit breaker: Pause trading if 3 consecutive API failures
+- Manual override: Emergency close all positions
+- Daily position limit: Hard cap at 5 positions
+
+**Deliverables:**
+- Broker API wrapper module
+- Authentication handler
+- Order execution interface
+- Live data streaming client
+- Position reconciliation script
+- Error handling and retry logic
+
+---
+
+### 4.5 MONITORING & ALERTS
 
 **Purpose:** Track system health and performance
 
@@ -1265,34 +1707,86 @@ Each strategy module must have:
 
 ---
 
-## TIMELINE SUMMARY
+## TIMELINE SUMMARY (UPDATED FOR ₹50K CAPITAL)
 
-- **Week 1-2:** Data pipeline + Database setup
-- **Week 3-4:** Technical indicators + Strategy development
-- **Week 5-6:** Risk management + Position sizing
-- **Week 7-8:** Paper trading engine + Daily orchestration
-- **Week 9-10:** Backtesting + Performance analytics
-- **Week 11-12:** Reports + Dashboard
-- **Week 13+:** Advanced features + Optimization
+**Phase 1: Foundation (Week 1-3)**
+- Week 1-2: Multi-timeframe data pipeline + Database setup (12 tables)
+- Week 3: Broker API integration basics (authentication, test orders)
 
-**Total Time to Functional System:** 10-12 weeks of focused work
+**Phase 2: Core Trading (Week 4-7)**
+- Week 4-5: Technical indicators + Multi-timeframe analysis engine
+- Week 5-6: 8 strategies (4 original + 4 new: intraday, short, options, multi-TF)
+- Week 7: Signal aggregator + Multi-timeframe alignment checker
+
+**Phase 3: Risk & Execution (Week 8-10)**
+- Week 8: Risk management (intraday + options limits)
+- Week 9: Real-time stop-loss protection + Trailing stops
+- Week 10: Dual-mode trading engine (paper + live)
+
+**Phase 4: Real-Time Operations (Week 11-13)**
+- Week 11: Live monitoring system (9:15 AM - 3:30 PM loop)
+- Week 12: Intraday position management + Auto-squaring
+- Week 13: Broker API live integration + Order management
+
+**Phase 5: Analysis & Reporting (Week 14-16)**
+- Week 14-15: Backtesting + Performance analytics
+- Week 16: Reports + Dashboard + Alerts
+
+**Phase 6: Advanced (Week 17+)**
+- Week 17+: Fundamental filters + News monitoring + Optimization
+
+**Total Time to Functional System:** 16-18 weeks (4-5 months)
+- **Paper Trading Ready:** Week 10 (EOD only)
+- **Live Trading Ready:** Week 16 (Full intraday + EOD + options)
+
+**Phased Deployment:**
+1. **Weeks 1-10:** Build & test with paper trading (EOD only)
+2. **Weeks 11-13:** Add real-time monitoring (paper trading with intraday)
+3. **Weeks 14-16:** Test live with ₹10k, then scale to ₹50k
+4. **Month 6+:** Full live trading with all features
 
 ---
 
-## COST BREAKDOWN (Paper Trading Phase)
+## COST BREAKDOWN
 
-**FREE Components:**
-- Data APIs: ₹0 (yfinance, NSEpy)
+**PAPER TRADING MODE (₹0/month):**
+- Data APIs: ₹0 (yfinance, NSEpy for historical data)
+- Real-time simulation: ₹0 (use delayed free data)
 - Database: ₹0 (SQLite)
 - Development: ₹0 (Python, open-source libraries)
-- Hosting: ₹0 (run on personal computer)
+- Hosting: ₹0 (run on personal computer/laptop)
+- **Total: ₹0/month**
 
-**Optional Paid (Future):**
-- Reliable data API: ₹2,000-3,000/month
-- Cloud hosting: ₹500-2,000/month
-- Fundamental data: ₹10,000+/year
+**LIVE TRADING MODE (₹2,000-2,500/month):**
 
-**Total Paper Trading Phase: ₹0**
+**Essential (Required):**
+- Broker API: ₹2,000/month (Zerodha Kite Connect or Upstox)
+  - Includes: Real-time data, order execution, WebSocket streaming
+  - Covers: Equity + Options trading
+- **Minimum Live Trading Cost: ₹2,000/month**
+
+**Optional Enhancements:**
+- Cloud hosting (AWS/GCP): ₹500-1,000/month (for 24/7 uptime)
+- VPS (for better reliability): ₹300-500/month
+- Backup data feed: ₹500/month (Alpha Vantage premium)
+- Fundamental data: ₹10,000/year (~₹833/month) - Only if using advanced filters
+- SMS alerts: ₹100-200/month
+- **Total with all optional: ₹3,500-4,500/month**
+
+**RECOMMENDED FOR ₹50K CAPITAL:**
+- **Month 1-3:** Paper trading = ₹0
+- **Month 4-6:** Live trading with broker API only = ₹2,000/month
+- **Month 6+:** Add optional features as needed
+
+**Annual Cost Estimates:**
+- **Paper trading (Year 1):** ₹0
+- **Live trading (basic):** ₹24,000/year (broker API only)
+- **Live trading (full):** ₹40,000-50,000/year (with all enhancements)
+
+**Brokerage Charges (Per Trade):**
+- Discount broker: ₹20 flat or 0.03% (whichever lower)
+- With 50-100 trades/month: ₹1,000-2,000/month in brokerage
+- Include in your returns calculation!
 
 ---
 
@@ -1321,4 +1815,139 @@ After 6-12 months of paper trading:
 
 ---
 
-**END OF NON-AI TRADING SYSTEM ARCHITECTURE**
+## WHAT'S NEW - ARCHITECTURE UPDATES FOR ₹50K CAPITAL
+
+**SUMMARY OF ADDITIONS:**
+
+This architecture has been updated from a basic EOD-only paper trading system to a comprehensive dual-mode (EOD + Intraday) system optimized for ₹50,000 starting capital.
+
+### **NEW CAPABILITIES ADDED:**
+
+**1. DUAL TRADING MODES**
+- ✅ End-of-Day (EOD) swing trading (original)
+- ✅ **NEW:** Intraday trading with real-time monitoring
+- ✅ **NEW:** Short selling (intraday MIS)
+- ✅ **NEW:** Basic options strategies (directional + covered calls)
+
+**2. REAL-TIME FEATURES**
+- ✅ **NEW:** Live price monitoring (9:15 AM - 3:30 PM)
+- ✅ **NEW:** Real-time stop-loss protection (5 stop-loss types)
+- ✅ **NEW:** Trailing stop-loss functionality
+- ✅ **NEW:** Auto-squaring of intraday positions (3:15 PM)
+- ✅ **NEW:** Intraday signal scanning and execution
+
+**3. MULTI-TIMEFRAME ANALYSIS**
+- ✅ **NEW:** Multi-timeframe data collection (1d, 1h, 15m, 5m, 1m)
+- ✅ **NEW:** Multi-timeframe analysis engine
+- ✅ **NEW:** Timeframe alignment checker (top-down analysis)
+- ✅ **NEW:** Divergence detection across timeframes
+- ✅ **NEW:** Dynamic stop-loss selection by timeframe
+
+**4. NEW STRATEGIES (4 → 8 strategies)**
+- ✅ Strategy 1-4: Original (Trend+RSI, Mean Reversion, Breakout, Momentum)
+- ✅ **NEW:** Strategy 5: Intraday Breakdown Short
+- ✅ **NEW:** Strategy 6: Multi-Timeframe Alignment
+- ✅ **NEW:** Strategy 7: Options Directional (Call/Put buying)
+- ✅ **NEW:** Strategy 8: Covered Call (Income generation)
+
+**5. ENHANCED DATABASE (7 → 12 tables)**
+- ✅ Original: Holdings, Trades, Portfolio Snapshot, Signals, Strategy Performance, Risk Metrics, Market Data Cache
+- ✅ **NEW:** Intraday Positions Table
+- ✅ **NEW:** Stop-Loss Tracker Table
+- ✅ **NEW:** Options Positions Table
+- ✅ **NEW:** Multi-Timeframe Signals Table
+- ✅ **NEW:** Order Queue Table
+
+**6. BROKER API INTEGRATION**
+- ✅ **NEW:** Zerodha/Upstox/Fyers API integration
+- ✅ **NEW:** Live order execution (MARKET, LIMIT, STOP-LOSS, BRACKET)
+- ✅ **NEW:** WebSocket streaming for real-time data
+- ✅ **NEW:** Position reconciliation with broker
+- ✅ **NEW:** Order status tracking and retry logic
+
+**7. ENHANCED ORDER TYPES**
+- ✅ Original: MARKET orders only (EOD)
+- ✅ **NEW:** LIMIT orders (specify price)
+- ✅ **NEW:** STOP-LOSS orders (trigger-based)
+- ✅ **NEW:** BRACKET orders (entry + SL + target combined)
+- ✅ **NEW:** SHORT/COVER orders for short selling
+
+**8. RISK MANAGEMENT ENHANCEMENTS**
+- ✅ Original: Daily, weekly, monthly limits
+- ✅ **NEW:** Intraday-specific limits (2% max loss, auto-square)
+- ✅ **NEW:** Options-specific limits (20% capital, min 7 days expiry)
+- ✅ **NEW:** MIS margin controls (max 3x leverage)
+- ✅ **NEW:** Cooldown after consecutive losses
+- ✅ **NEW:** Time-based trading windows (no trades after 2:30 PM)
+
+**9. POSITION TYPES**
+- ✅ Original: DELIVERY only
+- ✅ **NEW:** INTRADAY (MIS - auto-squared same day)
+- ✅ **NEW:** OPTIONS (Calls, Puts, Covered Calls)
+- ✅ **NEW:** SHORT positions (sell first, cover later)
+
+**10. REAL-TIME MONITORING SYSTEM**
+- ✅ **NEW:** Continuous 5-second monitoring loop
+- ✅ **NEW:** Live position tracking
+- ✅ **NEW:** Dynamic stop-loss updates
+- ✅ **NEW:** Target profit monitoring
+- ✅ **NEW:** Risk limit enforcement during market hours
+
+### **CAPITAL ADJUSTMENTS (₹1L → ₹50K):**
+- Position limits: 8-10 positions → 3-4 swing + 1-2 intraday
+- Risk per trade: ₹1,000 (1%) → ₹500 (1% of ₹50k)
+- Max position size: ₹20,000 (20%) → ₹10,000 (20% of ₹50k)
+- Options allocation: ₹20,000 → ₹10,000 (20% of capital)
+- Sector limits: 30% → Adjusted for smaller capital
+
+### **WHAT WAS NOT ADDED (Deliberately Excluded):**
+- ❌ AI/Machine Learning (non-AI rule-based system only)
+- ❌ High-frequency trading/Scalping (too costly, Python limitations)
+- ❌ Complex options strategies (spreads, iron condors - need more capital)
+- ❌ Futures trading (requires higher capital + margins)
+- ❌ Portfolio optimization algorithms (keep it simple)
+- ❌ Sentiment analysis beyond basic keywords (complex, unreliable)
+
+### **IMPLEMENTATION PRIORITY (For ₹50k Capital):**
+
+**MUST HAVE (Essential):**
+1. Multi-timeframe data collection
+2. Real-time stop-loss protection
+3. Broker API integration
+4. Intraday position management
+5. Risk limits enforcement
+
+**SHOULD HAVE (Important):**
+6. Multi-timeframe analysis engine
+7. Trailing stop-loss
+8. Short selling capability
+9. Basic options trading
+10. Auto-squaring mechanism
+
+**NICE TO HAVE (Optional, add later):**
+11. Advanced options strategies
+12. Fundamental filters
+13. News sentiment
+14. Multiple broker support
+15. Cloud deployment
+
+### **SYSTEM COMPLEXITY ASSESSMENT:**
+
+**Original Architecture:** Moderate (EOD only, 7 tables, 4 strategies)
+**Updated Architecture:** High (EOD + Intraday + Options, 12 tables, 8 strategies, real-time monitoring)
+
+**Development Effort:**
+- Original estimate: 10-12 weeks
+- Updated estimate: 16-18 weeks (4-5 months)
+- Additional complexity: ~60% increase
+
+**Operational Complexity:**
+- Paper trading: Low (runs once daily)
+- Live trading: Medium-High (requires monitoring, broker API management)
+
+**Recommendation:**
+Start with paper trading (Weeks 1-10), add real-time monitoring in testing (Weeks 11-13), transition to live with small capital (₹10k) before deploying full ₹50k.
+
+---
+
+**END OF NON-AI TRADING SYSTEM ARCHITECTURE - VERSION 2.0 (₹50K OPTIMIZED)**
