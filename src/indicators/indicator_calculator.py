@@ -17,6 +17,9 @@ from src.indicators.models import MultiIndicatorResult, IndicatorResult
 from src.indicators.trend import SMA, EMA, MACD, ADX
 from src.indicators.momentum import RSI, Stochastic
 from src.indicators.volatility import BollingerBands, ATR
+from src.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 # ============================================
@@ -72,7 +75,7 @@ class IndicatorFactory:
             else:
                 return indicator_class()
         except Exception as e:
-            print(f"[ERROR] Failed to create indicator '{indicator_name}': {e}")
+            logger.error(f"Failed to create indicator '{indicator_name}': {e}")
             return None
 
     @classmethod
@@ -170,7 +173,7 @@ class IndicatorCalculator:
                 ind_result = indicator.calculate(data)
                 result.add_indicator(ind_result)
             except Exception as e:
-                print(f"[ERROR] Failed to calculate {name}: {e}")
+                logger.error(f"Failed to calculate {name}: {e}")
 
         # Record calculation time
         duration_ms = (datetime.now() - start_time).total_seconds() * 1000
@@ -212,7 +215,7 @@ class IndicatorCalculator:
                     ind_result = indicator.calculate(data)
                     result.add_indicator(ind_result)
             except Exception as e:
-                print(f"[ERROR] Failed to calculate {ind_name}: {e}")
+                logger.error(f"Failed to calculate {ind_name}: {e}")
 
         duration_ms = (datetime.now() - start_time).total_seconds() * 1000
         result.calculation_time_ms = duration_ms

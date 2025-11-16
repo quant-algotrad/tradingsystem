@@ -355,9 +355,19 @@ class TradeDecisionEngine:
         signal: AggregatedSignal,
         action: TradeAction
     ) -> Dict[str, float]:
-        """Calculate entry, stop loss, and target levels"""
+        """
+        Calculate entry, stop loss, and target levels for a trade
 
-        # Use ATR-based stop loss if available
+        Uses volatility-based stops (ATR) when available, otherwise fixed percentage.
+        Maintains consistent 1:3 risk:reward ratio for all trades.
+
+        ATR (Average True Range): Measures market volatility
+        - Higher ATR = More volatile stock = Wider stops needed
+        - Lower ATR = Less volatile stock = Tighter stops acceptable
+        """
+
+        # Extract ATR value from indicator signals for volatility-based stop loss
+        # ATR provides market-adaptive stop loss levels
         atr_value = None
         for ind_name, ind_signal in signal.indicator_signals.items():
             if 'ATR' in ind_name:
@@ -365,32 +375,45 @@ class TradeDecisionEngine:
                 break
 
         if action == TradeAction.BUY:
+            # Long position: Buy at current price
             entry = current_price
 
-            # Stop loss: 2% below entry or 1.5 x ATR
+            # Calculate stop loss below entry price
+            # Preferred: 1.5x ATR (adapts to volatility)
+            # Fallback: 2% fixed (if ATR unavailable)
+            # Example: Entry=100, ATR=3 -> StopLoss = 100 - (3*1.5) = 95.5
+            # Example: Entry=100, No ATR -> StopLoss = 100 * 0.98 = 98
             if atr_value:
                 stop_loss = entry - (atr_value * 1.5)
             else:
-                stop_loss = entry * 0.98  # 2% stop
+                stop_loss = entry * 0.98  # 2% fixed stop
 
-            # Target: 3x risk (1:3 risk:reward)
+            # Calculate target using 3:1 reward:risk ratio
+            # If risking 100, aim to make 300
+            # Example: Entry=100, StopLoss=98, Risk=2, Target = 100 + (2*3) = 106
             risk = entry - stop_loss
             target = entry + (risk * 3.0)
 
         elif action == TradeAction.SHORT:
+            # Short position: Sell at current price
             entry = current_price
 
-            # Stop loss: 2% above entry or 1.5 x ATR
+            # Calculate stop loss above entry price (opposite of long)
+            # Example: Entry=100, ATR=3 -> StopLoss = 100 + (3*1.5) = 104.5
             if atr_value:
                 stop_loss = entry + (atr_value * 1.5)
             else:
-                stop_loss = entry * 1.02  # 2% stop
+                stop_loss = entry * 1.02  # 2% fixed stop
 
-            # Target: 3x risk
+            # Calculate target using 3:1 reward:risk ratio
+            # For shorts, target is below entry price
+            # Example: Entry=100, StopLoss=102, Risk=2, Target = 100 - (2*3) = 94
             risk = stop_loss - entry
             target = entry - (risk * 3.0)
 
-        else:  # SELL (close long)
+        else:  # SELL (close existing long position)
+            # Exit trade at current market price
+            # No stop loss or target needed for exits
             entry = current_price
             stop_loss = current_price
             target = current_price
@@ -422,13 +445,24 @@ class TradeDecisionEngine:
         Calculate position size based on risk management
 
         Uses fixed percentage risk per trade (default 1%)
+
+        Algorithm:
+        1. Calculate maximum risk amount (e.g., 1% of capital)
+        2. Calculate risk per share (distance from entry to stop loss)
+        3. Determine quantity: risk_amount / risk_per_share
+        4. Apply position size limits (max % of capital per position)
+        5. Apply capital availability constraint
         """
-        # Risk per trade (1% of capital)
+        # Step 1: Calculate maximum risk amount per trade
+        # Example: With 50,000 capital and 1% risk = 500 max risk
         risk_per_trade = capital * (self.risk_config.loss_limits.risk_per_trade_percent / 100)
 
-        # Calculate risk per share
+        # Step 2: Calculate risk per share
+        # This is the amount you lose per share if stop loss is hit
+        # Example: Entry=100, StopLoss=98, risk_per_share=2
         risk_per_share = abs(entry_price - stop_loss)
 
+        # Edge case: If stop loss equals entry price, we cannot calculate position size
         if risk_per_share == 0:
             return {
                 'quantity': 0,
@@ -437,25 +471,34 @@ class TradeDecisionEngine:
                 'risk_percent': 0
             }
 
-        # Calculate quantity
+        # Step 3: Calculate initial quantity based on risk
+        # Example: risk_per_trade=500, risk_per_share=2, quantity=250 shares
+        # This ensures that if stop loss is hit, you only lose your risk_per_trade amount
         quantity = int(risk_per_trade / risk_per_share)
 
-        # Calculate position value
+        # Step 4: Calculate total position value
+        # Example: 250 shares @ 100 = 25,000 position value
         position_value = quantity * entry_price
 
-        # Check max position size
+        # Step 5: Apply maximum position size constraint
+        # Prevents over-concentration in single stock (default: 20% of capital max)
+        # Example: With 50,000 capital and 20% max = 10,000 max position
         max_position_value = capital * (self.max_position_percent / 100)
 
         if position_value > max_position_value:
-            # Reduce quantity to fit max position size
+            # Reduce quantity to fit within maximum position size limit
+            # Example: max_position=10,000, entry=100, quantity=100 shares
             quantity = int(max_position_value / entry_price)
             position_value = quantity * entry_price
 
-        # Check if we have enough capital
+        # Step 6: Ensure we have sufficient capital
+        # This is a safety check in case calculations exceed available cash
         if position_value > capital:
             quantity = int(capital / entry_price)
             position_value = quantity * entry_price
 
+        # Step 7: Recalculate actual risk based on final quantity
+        # This may differ from risk_per_trade if position size limits were applied
         risk_amount = quantity * risk_per_share
         risk_percent = (risk_amount / capital) * 100 if capital > 0 else 0
 
@@ -493,26 +536,41 @@ class TradeDecisionEngine:
         """
         Calculate overall opportunity score (0-100)
 
-        Factors:
-        - Signal confidence (40%)
-        - Consensus strength (20%)
-        - Risk:reward ratio (20%)
-        - Signal strength (20%)
+        This score combines multiple factors to rate the trade quality.
+        Higher score means better opportunity.
+
+        Weighting:
+        - Signal confidence (40%): How confident are the indicators about direction
+        - Consensus strength (20%): How well do indicators agree
+        - Risk:reward ratio (20%): How favorable is the risk/reward profile
+        - Signal strength (20%): How strong is the directional bias
+
+        Example:
+        - Perfect trade: 100 score (high confidence, consensus, great R:R)
+        - Marginal trade: 50-60 score (meets minimum criteria)
+        - Poor trade: <50 score (should not be taken)
         """
-        # Normalize risk:reward to 0-100 (cap at 5:1)
+        # Normalize risk:reward ratio to 0-100 scale
+        # We cap at 5:1 risk:reward as exceptional (100 score)
+        # Example: 3:1 R:R = (3/5)*100 = 60 score
+        # Example: 5:1 R:R = (5/5)*100 = 100 score
         rr_score = min(100, (risk_reward / 5.0) * 100)
 
-        # Get dominant signal score
+        # Get dominant signal score (bullish or bearish)
+        # This is the strength of the directional bias
+        # Score ranges from 0.0 to 1.0, convert to 0-100
         signal_score = max(bullish_score, bearish_score) * 100
 
-        # Weighted combination
+        # Weighted combination of all factors
+        # This creates a composite score representing overall opportunity quality
         score = (
-            signal_confidence * 0.40 +
-            consensus_strength * 0.20 +
-            rr_score * 0.20 +
-            signal_score * 0.20
+            signal_confidence * 0.40 +     # 40% weight: Most important factor
+            consensus_strength * 0.20 +     # 20% weight: Indicator agreement
+            rr_score * 0.20 +               # 20% weight: Risk management quality
+            signal_score * 0.20             # 20% weight: Signal strength
         )
 
+        # Ensure score stays within 0-100 range
         return min(100, max(0, score))
 
     def _add_warnings(self, recommendation: TradeRecommendation, signal: AggregatedSignal):

@@ -12,6 +12,9 @@ from typing import Optional, Dict, Type
 from src.data.base_source import IDataSource
 from src.data.sources.yfinance_source import YFinanceSource, YFINANCE_AVAILABLE
 from src.config import DataSource as DataSourceEnum
+from src.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 class DataSourceFactory:
@@ -64,7 +67,7 @@ class DataSourceFactory:
             raise TypeError(f"{source_class} must implement IDataSource interface")
 
         cls._registry[name.lower()] = source_class
-        print(f"[INFO] Registered data source: {name}")
+        logger.info(f"Registered data source: {name}")
 
     @classmethod
     def create(cls, source_name: str) -> Optional[IDataSource]:
@@ -94,11 +97,11 @@ class DataSourceFactory:
         try:
             source_class = cls._registry[source_name_lower]
             instance = source_class()
-            print(f"[INFO] Created data source: {instance.get_name()}")
+            logger.info(f"Created data source: {instance.get_name()}")
             return instance
 
         except Exception as e:
-            print(f"[ERROR] Failed to create data source '{source_name}': {e}")
+            logger.error(f"Failed to create data source '{source_name}': {e}")
             return None
 
     @classmethod

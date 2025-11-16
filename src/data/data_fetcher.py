@@ -24,6 +24,9 @@ from src.data.models import (
 )
 from src.data.data_source_factory import DataSourceFactory
 from src.config import get_api_config, DataSource as DataSourceEnum
+from src.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 class DataFetcher:
@@ -73,7 +76,7 @@ class DataFetcher:
             self._primary_source = DataSourceFactory.create_from_config(primary_name)
 
             if not self._primary_source:
-                print(f"[WARNING] Could not create primary source: {primary_name.value}")
+                logger.warning(f"Could not create primary source: {primary_name.value}")
 
             # Create fallback sources
             for fallback_name in self.config.data_source.fallback_sources:
@@ -85,14 +88,16 @@ class DataFetcher:
                     if fallback_source:
                         self._fallback_sources.append(fallback_source)
                 except Exception as e:
-                    print(f"[WARNING] Could not create fallback source {fallback_name}: {e}")
+                    logger.warning(f"Could not create fallback source {fallback_name}: {e}")
 
-            print(f"[INFO] Data sources initialized:")
-            print(f"  Primary: {self._primary_source.get_name() if self._primary_source else 'None'}")
-            print(f"  Fallbacks: {[s.get_name() for s in self._fallback_sources]}")
+            logger.info(
+                f"Data sources initialized - "
+                f"Primary: {self._primary_source.get_name() if self._primary_source else 'None'}, "
+                f"Fallbacks: {[s.get_name() for s in self._fallback_sources]}"
+            )
 
         except Exception as e:
-            print(f"[ERROR] Failed to initialize data sources: {e}")
+            logger.error(f"Failed to initialize data sources: {e}")
 
     # ========================================
     # Public API
@@ -160,7 +165,7 @@ class DataFetcher:
                 if not fallback_source.is_available():
                     continue
 
-                print(f"[INFO] Falling back to: {fallback_source.get_name()}")
+                logger.info(f"Falling back to: {fallback_source.get_name()}")
 
                 response = self._fetch_with_retry(
                     fallback_source,
@@ -306,12 +311,14 @@ class DataFetcher:
                 # If not last attempt, retry
                 if attempt < max_retries:
                     wait_time = retry_delay * (attempt + 1)  # Linear backoff
-                    print(f"[INFO] Retry {attempt + 1}/{max_retries} for {source.get_name()} "
-                          f"after {wait_time}s...")
+                    logger.info(
+                        f"Retry {attempt + 1}/{max_retries} for {source.get_name()} "
+                        f"after {wait_time}s"
+                    )
                     time.sleep(wait_time)
 
             except Exception as e:
-                print(f"[ERROR] Attempt {attempt + 1} failed for {source.get_name()}: {e}")
+                logger.error(f"Attempt {attempt + 1} failed for {source.get_name()}: {e}")
 
                 if attempt < max_retries:
                     time.sleep(retry_delay)

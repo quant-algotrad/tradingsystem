@@ -22,6 +22,9 @@ from src.data.models import (
     Quote,
     DataQuality
 )
+from src.utils import get_logger
+
+logger = get_logger(__name__)
 
 # Conditional import for yfinance
 try:
@@ -188,7 +191,7 @@ class YFinanceSource(BaseDataSource, IRateLimitedDataSource):
             return quote
 
         except Exception as e:
-            print(f"[ERROR] YFinance quote fetch failed for {symbol}: {e}")
+            logger.error(f"YFinance quote fetch failed for {symbol}: {e}")
             return None
 
     def get_symbol_info(self, symbol: str) -> Optional[SymbolInfo]:
@@ -233,7 +236,7 @@ class YFinanceSource(BaseDataSource, IRateLimitedDataSource):
             return symbol_info
 
         except Exception as e:
-            print(f"[ERROR] YFinance symbol info fetch failed for {symbol}: {e}")
+            logger.error(f"YFinance symbol info fetch failed for {symbol}: {e}")
             return None
 
     # ========================================
@@ -264,7 +267,7 @@ class YFinanceSource(BaseDataSource, IRateLimitedDataSource):
             wait_seconds = (wait_until - datetime.now()).total_seconds()
 
             if wait_seconds > 0:
-                print(f"[INFO] Rate limit reached, waiting {wait_seconds:.1f}s...")
+                logger.info(f"Rate limit reached, waiting {wait_seconds:.1f}s")
                 time.sleep(wait_seconds)
                 return wait_seconds
 
@@ -323,7 +326,7 @@ class YFinanceSource(BaseDataSource, IRateLimitedDataSource):
                 bars.append(bar)
             except (ValueError, KeyError) as e:
                 # Skip invalid bars
-                print(f"[WARNING] Skipping invalid bar at {timestamp}: {e}")
+                logger.warning(f"Skipping invalid bar at {timestamp}: {e}")
                 continue
 
         return OHLCVSeries(

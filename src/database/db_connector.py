@@ -7,6 +7,9 @@ import sqlite3
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
+from src.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 class DatabaseConnector:
@@ -39,7 +42,7 @@ class DatabaseConnector:
             return True
 
         except Exception as e:
-            print(f"[ERROR] Database connection failed: {e}")
+            logger.error(f"Database connection failed: {e}")
             return False
 
     def execute_query(self, query: str, params: Tuple = ()) -> List[sqlite3.Row]:
@@ -61,7 +64,7 @@ class DatabaseConnector:
             return self.cursor.fetchall()
 
         except Exception as e:
-            print(f"[ERROR] Query execution failed: {e}")
+            logger.error(f"Query execution failed: {e}")
             return []
 
     def execute_update(self, query: str, params: Tuple = ()) -> int:
@@ -84,7 +87,7 @@ class DatabaseConnector:
             return self.cursor.rowcount
 
         except Exception as e:
-            print(f"[ERROR] Update execution failed: {e}")
+            logger.error(f"Update execution failed: {e}")
             if self.conn:
                 self.conn.rollback()
             return 0
@@ -109,7 +112,7 @@ class DatabaseConnector:
             return self.cursor.rowcount
 
         except Exception as e:
-            print(f"[ERROR] Bulk execution failed: {e}")
+            logger.error(f"Bulk execution failed: {e}")
             if self.conn:
                 self.conn.rollback()
             return 0
