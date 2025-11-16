@@ -511,13 +511,25 @@ class Supertrend(BaseIndicator):
             else:
                 final_lowerband.iloc[i] = final_lowerband.iloc[i-1]
 
-            # Determine Supertrend and direction
-            if close.iloc[i] <= final_upperband.iloc[i]:
-                supertrend.iloc[i] = final_upperband.iloc[i]
-                direction.iloc[i] = -1  # Downtrend
+            # Determine Supertrend and direction based on band crossovers
+            # Compare with PREVIOUS bands to detect crossovers
+            if close.iloc[i] > final_upperband.iloc[i-1]:
+                # Price crossed above upper band -> Switch to uptrend
+                direction.iloc[i] = 1
+            elif close.iloc[i] < final_lowerband.iloc[i-1]:
+                # Price crossed below lower band -> Switch to downtrend
+                direction.iloc[i] = -1
             else:
+                # Price between bands -> Maintain previous direction
+                direction.iloc[i] = direction.iloc[i-1]
+
+            # Set Supertrend line based on current direction
+            if direction.iloc[i] == 1:
+                # Uptrend: Supertrend acts as support (lower band)
                 supertrend.iloc[i] = final_lowerband.iloc[i]
-                direction.iloc[i] = 1  # Uptrend
+            else:
+                # Downtrend: Supertrend acts as resistance (upper band)
+                supertrend.iloc[i] = final_upperband.iloc[i]
 
         # Create indicator values (use Supertrend line)
         values = self._create_indicator_values(data.index, supertrend.values)
