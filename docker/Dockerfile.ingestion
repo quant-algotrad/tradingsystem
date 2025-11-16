@@ -1,0 +1,23 @@
+# Market Data Ingestion Service
+FROM python:3.11-slim-bullseye
+
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y gcc g++ libpq-dev && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir kafka-python psycopg2-binary schedule redis
+
+# Copy source
+COPY src/ /app/src/
+COPY config/ /app/config/
+
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV TZ=Asia/Kolkata
+
+# Run market data worker
+CMD ["python", "-m", "src.workers.market_data_worker"]

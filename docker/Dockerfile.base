@@ -1,0 +1,50 @@
+# Base Dockerfile for all trading services
+# Platform: linux/arm64 (Mac M4 compatible)
+
+FROM python:3.11-slim-bullseye
+
+# Set platform
+ENV DOCKER_DEFAULT_PLATFORM=linux/arm64
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    make \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install additional packages for services
+RUN pip install --no-cache-dir \
+    kafka-python==2.0.2 \
+    psycopg2-binary==2.9.9 \
+    schedule==1.2.0 \
+    dash==2.14.2 \
+    plotly==5.18.0 \
+    redis==5.0.1
+
+# Copy source code
+COPY src/ /app/src/
+COPY config/ /app/config/
+
+# Set timezone
+ENV TZ=Asia/Kolkata
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Set Python path
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)" || exit 1

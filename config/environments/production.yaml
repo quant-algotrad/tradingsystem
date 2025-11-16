@@ -1,0 +1,258 @@
+# Production Environment Configuration
+# For live trading with real money - Use with CAUTION
+
+trading:
+  paper_trading_mode: false  # LIVE TRADING
+  allow_short_selling: true
+  allow_options_trading: true
+
+  watchlist_symbols:
+    - RELIANCE.NS
+    - TCS.NS
+    - INFY.NS
+    - HDFCBANK.NS
+    - ICICIBANK.NS
+    - SBIN.NS
+    - BAJFINANCE.NS
+    - LT.NS
+    - WIPRO.NS
+    - MARUTI.NS
+  max_watchlist_size: 50
+
+  price_update_interval_seconds: 5  # Real-time
+  eod_data_fetch_time: "15:45"
+
+  position_limits:
+    initial_capital: 50000.0
+    max_position_size_percent: 20.0
+    max_deployed_capital_percent: 80.0
+    cash_buffer_percent: 20.0
+    max_swing_positions: 4
+    max_intraday_positions: 2
+    max_options_positions: 2
+    max_positions_per_sector: 2
+    min_sectors_required: 2
+    max_options_capital_percent: 20.0
+    max_option_premium_per_trade: 5000.0
+    min_days_to_expiry: 7
+
+  trading_hours:
+    market_open: "09:15"
+    market_close: "15:30"
+    intraday_entry_cutoff: "14:30"
+    auto_square_time: "15:15"
+    post_market_start: "15:45"
+    avoid_first_n_minutes: 15
+    avoid_last_n_minutes: 15
+
+  order_execution:
+    default_entry_order_type: LIMIT  # Use LIMIT for better fills in production
+    default_exit_order_type: MARKET  # Exit fast
+    use_bracket_orders: true
+    expected_slippage_percent: 0.1
+    max_acceptable_slippage_percent: 0.3  # Stricter in production
+    order_timeout_seconds: 30
+    max_retry_attempts: 2  # Less retries in production
+    retry_delay_seconds: 3
+
+  strategy:
+    enabled_strategies:
+      - TREND_RSI
+      - MEAN_REVERSION
+      - BREAKOUT
+      - MOMENTUM
+      - MULTI_TIMEFRAME
+    strategy_weights:
+      TREND_RSI: 0.25
+      MEAN_REVERSION: 0.25
+      BREAKOUT: 0.20
+      MOMENTUM: 0.15
+      MULTI_TIMEFRAME: 0.15
+    min_signal_strength: 70.0  # Higher threshold for production
+    require_timeframe_alignment: true
+    min_alignment_score: 75.0
+
+  timeframes:
+    swing_primary_timeframe: 1d
+    intraday_primary_timeframe: 15m
+    enabled_timeframes:
+      - 1d
+      - 1h
+      - 15m
+      - 5m
+    timeframe_weights:
+      1d: 0.40
+      1h: 0.30
+      15m: 0.20
+      5m: 0.10
+
+risk:
+  risk_management_enabled: true
+  strict_mode: true  # NO overrides in production
+  daily_risk_report: true
+  alert_on_limit_approach: true
+  alert_threshold_percent: 75.0  # Earlier alerts
+
+  loss_limits:
+    risk_per_trade_percent: 1.0
+    max_risk_per_trade_amount: 500.0
+    max_daily_loss_percent: 2.5  # Stricter
+    max_daily_loss_amount: 1250.0
+    max_weekly_loss_percent: 5.0  # Stricter
+    max_weekly_loss_amount: 2500.0
+    max_monthly_drawdown_percent: 8.0  # Stricter
+    max_monthly_drawdown_amount: 4000.0
+    max_intraday_loss_percent: 1.5  # Stricter
+    max_intraday_loss_amount: 750.0
+    max_consecutive_losses: 2  # Stop faster
+    cooldown_after_consecutive_losses_minutes: 120  # Longer cooldown
+
+  stop_loss:
+    default_stop_type: TRAILING  # Use trailing stops
+    fixed_sl_enabled: true
+    percentage_sl_enabled: true
+    default_sl_percent: 1.5  # Tighter stops
+    max_sl_percent: 3.0
+    trailing_sl_enabled: true
+    trailing_activation_percent: 1.5
+    trailing_distance_percent: 0.75
+    atr_sl_enabled: true
+    atr_multiplier: 1.5  # Tighter ATR stops
+    time_based_sl_enabled: true
+    max_hold_hours_intraday: 3
+    max_hold_days_swing: 7
+    tighten_sl_on_profit: true
+    tighten_threshold_percent: 2.0
+    tighten_to_percent: 0.75
+
+  targets:
+    use_targets: true
+    min_risk_reward_ratio: 2.5  # Higher R:R required
+    default_risk_reward_ratio: 3.0
+    enable_partial_exits: true
+    first_target_percent: 2.5
+    first_target_exit_size: 50.0
+    second_target_percent: 4.0
+    second_target_exit_size: 50.0
+    trail_remainder: true
+
+  circuit_breaker:
+    enabled: true
+    halt_on_5_percent_drawdown: true
+    reduce_size_on_5_percent: true
+    size_reduction_percent: 50.0
+    halt_on_10_percent_drawdown: true
+    stop_new_trades_on_10_percent: true
+    halt_on_15_percent_drawdown: true
+    close_all_positions_on_15_percent: true
+    halt_after_consecutive_losses: 2  # More aggressive
+    halt_duration_minutes: 120
+    halt_on_daily_limit: true
+    halt_on_api_failures: true
+    max_api_failures: 2
+    allow_manual_override: false  # No overrides in production
+    require_password_for_override: true
+
+  position_rules:
+    max_correlated_positions: 2
+    correlation_threshold: 0.65  # Stricter correlation limit
+    max_sector_exposure_percent: 35.0  # Lower sector concentration
+    avoid_high_volatility_stocks: true
+    max_daily_volatility_percent: 4.0
+    min_daily_volume: 200000  # Higher liquidity requirement
+    min_market_cap_crores: 2000.0  # Higher market cap
+
+database:
+  schema_version: "1.0"
+  auto_migrate: false  # Manual migration in production
+  strict_schema_validation: true
+  log_queries: false  # Disable for performance
+  log_slow_queries: true
+  slow_query_threshold_ms: 500  # More sensitive
+
+  connection:
+    db_type: sqlite
+    db_path: data/trading_system.db
+    timeout: 30
+    check_same_thread: false
+    isolation_level: DEFERRED
+    pool_size: 10  # Larger pool
+    max_overflow: 20
+    pool_timeout: 30
+
+  maintenance:
+    enable_auto_backup: true
+    backup_frequency_hours: 6  # More frequent backups
+    backup_directory: data/backups
+    max_backups_to_keep: 30  # Keep more backups
+    enable_auto_vacuum: true
+    vacuum_frequency_days: 3  # More frequent
+    enable_auto_archive: true
+    archive_after_days: 180  # Archive sooner
+    delete_old_market_data_days: 60
+    delete_old_logs_days: 90
+
+  performance:
+    enable_query_cache: true
+    query_cache_size_mb: 100  # Larger cache
+    query_cache_ttl_seconds: 600
+    auto_create_indexes: true
+    analyze_frequency_hours: 12
+    batch_insert_size: 500  # Smaller batches for consistency
+    enable_batch_commits: false  # Immediate commits
+    use_wal_mode: true
+
+api:
+  enable_api_caching: true
+  global_timeout_seconds: 20  # Faster timeout
+  log_api_errors: true
+  alert_on_api_failure: true
+  circuit_breaker_on_failures: true
+  max_consecutive_failures: 2
+  mock_api_responses: false
+  record_api_calls: false  # Disable for performance
+
+  broker:
+    broker_type: zerodha  # CHANGE THIS based on your broker
+    enabled: true
+    # NOTE: Credentials should be loaded from environment variables or secure vault
+    # api_key: ${BROKER_API_KEY}
+    # api_secret: ${BROKER_API_SECRET}
+    max_requests_per_second: 8  # Conservative rate limit
+    max_orders_per_day: 50  # Daily order limit
+    api_timeout_seconds: 20
+    websocket_timeout_seconds: 60
+    max_retry_attempts: 2
+    retry_delay_seconds: 3
+    exponential_backoff: true
+    max_backoff_seconds: 16
+    enable_failover: true
+
+  data_source:
+    primary_source: broker_api  # Use broker for live data
+    realtime_source: broker_api
+    historical_sources:
+      - broker_api
+      - yfinance
+    enable_fallback: true
+    fallback_sources:
+      - yfinance
+      - alpha_vantage
+    max_retries_per_source: 2
+    source_timeout_seconds: 20
+    cache_data: true
+    cache_ttl_seconds: 60  # Shorter cache for live data
+    validate_data_quality: true
+    reject_outliers: true
+    outlier_threshold_std: 2.5  # Stricter outlier detection
+
+  websocket:
+    enabled: true  # Enable for live data
+    auto_reconnect: true
+    reconnect_delay_seconds: 3
+    max_reconnect_attempts: 5
+    ping_interval_seconds: 30
+    pong_timeout_seconds: 10
+    subscribe_to_quotes: true
+    subscribe_to_orders: true
+    subscribe_to_positions: true

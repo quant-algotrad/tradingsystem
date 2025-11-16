@@ -1,0 +1,3 @@
+2025-11-15 09:56:25 | [1;34mTRADE[0m | trading.trades       | TRADE | BUY 10 RELIANCE.NS @ ₹2450.50 | strategy=TREND_RSI | reason=RSI oversold | confidence=85.0
+2025-11-15 09:56:25 | [1;34mTRADE[0m | trading.trades       | TRADE | SELL 5 TCS.NS @ ₹3200.75 | strategy=MEAN_REVERSION | reason=Bollinger upper band | pnl=1250.5
+2025-11-15 09:56:25 | [1;34mTRADE[0m | trading.trades       | TRADE | SHORT 15 INFY.NS @ ₹1450.25 | strategy=BREAKOUT | reason=Breakdown with volume

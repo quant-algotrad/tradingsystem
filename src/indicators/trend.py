@@ -1,0 +1,407 @@
+"""
+Trend Indicators
+Indicators that identify market trends
+
+Includes:
+- SMA (Simple Moving Average)
+- EMA (Exponential Moving Average)
+- MACD (Moving Average Convergence Divergence)
+"""
+
+import pandas as pd
+import numpy as np
+from datetime import datetime
+
+from src.indicators.base_indicator import BaseIndicator, SignalStrengthCalculator
+from src.indicators.models import (
+    IndicatorResult,
+    IndicatorValue,
+    IndicatorCategory,
+    SignalValue,
+    IndicatorSignal,
+    MovingAverageParams,
+    MACDParams,
+    IndicatorParameters
+)
+
+
+# ============================================
+# SMA (Simple Moving Average)
+# ============================================
+
+class SMA(BaseIndicator):
+    """
+    Simple Moving Average
+
+    Calculates arithmetic mean of prices over a period
+    Used for trend identification and support/resistance
+
+    Formula: SMA = Sum(Close, N) / N
+    """
+
+    def __init__(self, params: MovingAverageParams = None):
+        """
+        Initialize SMA
+
+        Args:
+            params: MA parameters (period, default: 20)
+        """
+        if params is None:
+            params = MovingAverageParams(period=20)
+
+        super().__init__(params)
+        self.params: MovingAverageParams = params
+
+    def get_name(self) -> str:
+        return f"SMA_{self.params.period}"
+
+    def get_category(self) -> IndicatorCategory:
+        return IndicatorCategory.TREND
+
+    def _calculate_values(self, data: pd.DataFrame) -> IndicatorResult:
+        """Calculate SMA values"""
+        close = data['close']
+
+        # Calculate SMA
+        sma = self._sma(close, self.params.period)
+
+        # Create indicator values
+        values = self._create_indicator_values(data.index, sma.values)
+
+        return self._create_result(values)
+
+    def interpret_signal(self, result: IndicatorResult, index: int = -1) -> IndicatorSignal:
+        """
+        Interpret SMA signal
+
+        Buy when price crosses above SMA
+        Sell when price crosses below SMA
+        """
+        if abs(index) > len(result):
+            raise ValueError(f"Index {index} out of range")
+
+        current = result.values[index]
+        prev = result.values[index - 1] if index > 0 or abs(index) < len(result) else None
+
+        # Need price for crossover detection (would be passed in real implementation)
+        # For now, simplified interpretation
+        signal = SignalValue.NEUTRAL
+        strength = 0.0
+
+        return IndicatorSignal(
+            indicator_name=self.get_name(),
+            timestamp=current.timestamp,
+            signal=signal,
+            strength=strength,
+            current_value=current.value
+        )
+
+
+# ============================================
+# EMA (Exponential Moving Average)
+# ============================================
+
+class EMA(BaseIndicator):
+    """
+    Exponential Moving Average
+
+    Weighted moving average that gives more weight to recent prices
+    More responsive to recent price changes than SMA
+
+    Formula: EMA = Price(t) * k + EMA(y) * (1 – k)
+    where k = 2 / (N + 1)
+    """
+
+    def __init__(self, params: MovingAverageParams = None):
+        """
+        Initialize EMA
+
+        Args:
+            params: MA parameters (period, default: 20)
+        """
+        if params is None:
+            params = MovingAverageParams(period=20, ma_type="EMA")
+
+        super().__init__(params)
+        self.params: MovingAverageParams = params
+
+    def get_name(self) -> str:
+        return f"EMA_{self.params.period}"
+
+    def get_category(self) -> IndicatorCategory:
+        return IndicatorCategory.TREND
+
+    def _calculate_values(self, data: pd.DataFrame) -> IndicatorResult:
+        """Calculate EMA values"""
+        close = data['close']
+
+        # Calculate EMA
+        ema = self._ema(close, self.params.period)
+
+        # Create indicator values
+        values = self._create_indicator_values(data.index, ema.values)
+
+        return self._create_result(values)
+
+    def interpret_signal(self, result: IndicatorResult, index: int = -1) -> IndicatorSignal:
+        """
+        Interpret EMA signal
+
+        Similar to SMA - crossovers indicate trend changes
+        """
+        current = result.values[index]
+
+        return IndicatorSignal(
+            indicator_name=self.get_name(),
+            timestamp=current.timestamp,
+            signal=SignalValue.NEUTRAL,
+            strength=0.0,
+            current_value=current.value
+        )
+
+
+# ============================================
+# MACD (Moving Average Convergence Divergence)
+# ============================================
+
+class MACD(BaseIndicator):
+    """
+    Moving Average Convergence Divergence
+
+    Trend-following momentum indicator
+    Shows relationship between two moving averages
+
+    Components:
+    - MACD Line: 12-EMA - 26-EMA
+    - Signal Line: 9-EMA of MACD Line
+    - Histogram: MACD Line - Signal Line
+
+    Signals:
+    - MACD crosses above Signal: Buy
+    - MACD crosses below Signal: Sell
+    - Histogram expansion: Trend strengthening
+    - Histogram contraction: Trend weakening
+    """
+
+    def __init__(self, params: MACDParams = None):
+        """
+        Initialize MACD
+
+        Args:
+            params: MACD parameters (fast=12, slow=26, signal=9)
+        """
+        if params is None:
+            params = MACDParams()
+
+        super().__init__(params)
+        self.params: MACDParams = params
+
+    def get_name(self) -> str:
+        return "MACD"
+
+    def get_category(self) -> IndicatorCategory:
+        return IndicatorCategory.TREND
+
+    def get_required_periods(self) -> int:
+        """MACD needs slow_period + signal_period"""
+        return self.params.slow_period + self.params.signal_period
+
+    def _get_required_columns(self) -> list:
+        return ['close']
+
+    def _calculate_values(self, data: pd.DataFrame) -> IndicatorResult:
+        """Calculate MACD, Signal, and Histogram"""
+        close = data['close']
+
+        # Calculate EMAs
+        ema_fast = self._ema(close, self.params.fast_period)
+        ema_slow = self._ema(close, self.params.slow_period)
+
+        # MACD Line
+        macd_line = ema_fast - ema_slow
+
+        # Signal Line (EMA of MACD)
+        signal_line = macd_line.ewm(span=self.params.signal_period, adjust=False).mean()
+
+        # Histogram
+        histogram = macd_line - signal_line
+
+        # Create indicator values (using MACD line as primary)
+        values = self._create_indicator_values(data.index, macd_line.values)
+
+        # Additional lines
+        additional_lines = {
+            'signal': signal_line.values.tolist(),
+            'histogram': histogram.values.tolist()
+        }
+
+        return self._create_result(values, additional_lines)
+
+    def interpret_signal(self, result: IndicatorResult, index: int = -1) -> IndicatorSignal:
+        """
+        Interpret MACD signal
+
+        Buy: MACD crosses above Signal
+        Sell: MACD crosses below Signal
+        """
+        if abs(index) > len(result):
+            raise ValueError(f"Index {index} out of range")
+
+        # Get current values
+        macd_value = result.values[index].value
+        signal_value = result.additional_lines['signal'][index]
+        histogram_value = result.additional_lines['histogram'][index]
+
+        # Determine signal based on crossover
+        if histogram_value > 0:
+            signal = SignalValue.BUY if histogram_value > 0.5 else SignalValue.NEUTRAL
+        elif histogram_value < 0:
+            signal = SignalValue.SELL if histogram_value < -0.5 else SignalValue.NEUTRAL
+        else:
+            signal = SignalValue.NEUTRAL
+
+        # Calculate strength
+        strength = SignalStrengthCalculator.calculate_macd_strength(
+            macd_value,
+            signal_value
+        )
+
+        # Check for crossover
+        threshold_crossed = None
+        if index > 0 or abs(index) < len(result):
+            prev_hist = result.additional_lines['histogram'][index - 1]
+            if prev_hist < 0 and histogram_value > 0:
+                threshold_crossed = "bullish_crossover"
+            elif prev_hist > 0 and histogram_value < 0:
+                threshold_crossed = "bearish_crossover"
+
+        return IndicatorSignal(
+            indicator_name=self.get_name(),
+            timestamp=result.values[index].timestamp,
+            signal=signal,
+            strength=strength,
+            current_value=macd_value,
+            threshold_crossed=threshold_crossed,
+            reasoning=f"MACD: {macd_value:.2f}, Signal: {signal_value:.2f}, "
+                     f"Histogram: {histogram_value:.2f}"
+        )
+
+
+# ============================================
+# ADX (Average Directional Index)
+# ============================================
+
+class ADX(BaseIndicator):
+    """
+    Average Directional Index
+
+    Measures trend strength (not direction)
+    Values range from 0-100
+
+    Interpretation:
+    - ADX < 20: Weak or no trend
+    - ADX 20-25: Emerging trend
+    - ADX 25-50: Strong trend
+    - ADX > 50: Very strong trend
+
+    Also calculates +DI and -DI for trend direction
+    """
+
+    def __init__(self, params: IndicatorParameters = None):
+        """
+        Initialize ADX
+
+        Args:
+            params: Period parameter (default: 14)
+        """
+        if params is None:
+            params = IndicatorParameters(period=14)
+
+        super().__init__(params)
+
+    def get_name(self) -> str:
+        return f"ADX_{self.params.period}"
+
+    def get_category(self) -> IndicatorCategory:
+        return IndicatorCategory.TREND
+
+    def _get_required_columns(self) -> list:
+        return ['high', 'low', 'close']
+
+    def _calculate_values(self, data: pd.DataFrame) -> IndicatorResult:
+        """Calculate ADX, +DI, -DI"""
+        high = data['high']
+        low = data['low']
+        close = data['close']
+
+        # Calculate True Range
+        tr = self._true_range(high, low, close)
+
+        # Calculate Directional Movement
+        plus_dm = high.diff()
+        minus_dm = -low.diff()
+
+        # Zero out negative movements
+        plus_dm[plus_dm < 0] = 0
+        minus_dm[minus_dm < 0] = 0
+
+        # When both are positive, only count the larger one
+        plus_dm[(plus_dm > 0) & (minus_dm > 0) & (plus_dm < minus_dm)] = 0
+        minus_dm[(plus_dm > 0) & (minus_dm > 0) & (minus_dm < plus_dm)] = 0
+
+        # Smooth the values
+        period = self.params.period
+        atr = tr.ewm(span=period, adjust=False).mean()
+        plus_di = 100 * (plus_dm.ewm(span=period, adjust=False).mean() / atr)
+        minus_di = 100 * (minus_dm.ewm(span=period, adjust=False).mean() / atr)
+
+        # Calculate DX
+        dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di)
+
+        # Calculate ADX (smoothed DX)
+        adx = dx.ewm(span=period, adjust=False).mean()
+
+        # Create indicator values
+        values = self._create_indicator_values(data.index, adx.values)
+
+        # Additional lines
+        additional_lines = {
+            'plus_di': plus_di.values.tolist(),
+            'minus_di': minus_di.values.tolist()
+        }
+
+        return self._create_result(values, additional_lines)
+
+    def interpret_signal(self, result: IndicatorResult, index: int = -1) -> IndicatorSignal:
+        """
+        Interpret ADX signal
+
+        Strong trend if ADX > 25
+        Direction from +DI and -DI
+        """
+        adx_value = result.values[index].value
+        plus_di = result.additional_lines['plus_di'][index]
+        minus_di = result.additional_lines['minus_di'][index]
+
+        # Determine signal
+        if adx_value < 20:
+            signal = SignalValue.NEUTRAL
+            reasoning = "Weak trend, avoid trading"
+        elif plus_di > minus_di:
+            signal = SignalValue.BUY if adx_value > 25 else SignalValue.NEUTRAL
+            reasoning = f"Uptrend (ADX: {adx_value:.1f})"
+        else:
+            signal = SignalValue.SELL if adx_value > 25 else SignalValue.NEUTRAL
+            reasoning = f"Downtrend (ADX: {adx_value:.1f})"
+
+        # Strength based on ADX value
+        strength = min(100, adx_value)
+
+        return IndicatorSignal(
+            indicator_name=self.get_name(),
+            timestamp=result.values[index].timestamp,
+            signal=signal,
+            strength=strength,
+            current_value=adx_value,
+            reasoning=reasoning
+        )
