@@ -405,3 +405,357 @@ class ADX(BaseIndicator):
             current_value=adx_value,
             reasoning=reasoning
         )
+
+
+# ============================================
+# Supertrend Indicator
+# ============================================
+
+class Supertrend(BaseIndicator):
+    """
+    Supertrend Indicator
+
+    Advanced trend-following indicator that provides dynamic support/resistance levels
+    based on ATR (Average True Range) for volatility adaptation.
+
+    Formula:
+    Basic Upperband = (HIGH + LOW) / 2 + (Multiplier × ATR)
+    Basic Lowerband = (HIGH + LOW) / 2 - (Multiplier × ATR)
+
+    Final Bands adjust based on price action to create smooth support/resistance
+
+    Signals:
+    - Price above Supertrend (green): Uptrend, BUY signal
+    - Price below Supertrend (red): Downtrend, SELL signal
+    - Supertrend flip: Strong trend change signal
+
+    Advantages:
+    - Volatility-adjusted (uses ATR)
+    - Clear visual trend identification
+    - Combines trend direction and stop-loss level
+    - Reduces whipsaws compared to simple moving averages
+
+    Best for: Trending markets, swing trading
+    """
+
+    def __init__(self, params: IndicatorParameters = None):
+        """
+        Initialize Supertrend
+
+        Args:
+            params: Parameters (period=10, multiplier=3.0)
+        """
+        if params is None:
+            params = IndicatorParameters(period=10)
+
+        super().__init__(params)
+        self.multiplier = 3.0  # ATR multiplier for band calculation
+
+    def get_name(self) -> str:
+        return f"SUPERTREND_{self.params.period}"
+
+    def get_category(self) -> IndicatorCategory:
+        return IndicatorCategory.TREND
+
+    def _get_required_columns(self) -> list:
+        return ['high', 'low', 'close']
+
+    def _calculate_values(self, data: pd.DataFrame) -> IndicatorResult:
+        """
+        Calculate Supertrend values
+
+        Steps:
+        1. Calculate ATR for volatility
+        2. Calculate basic upper and lower bands
+        3. Apply trend-following logic to finalize bands
+        4. Determine Supertrend line based on price position
+        """
+        high = data['high']
+        low = data['low']
+        close = data['close']
+
+        # Step 1: Calculate ATR
+        atr = self._atr_calculation(high, low, close, self.params.period)
+
+        # Step 2: Calculate basic bands
+        # HL2 = (High + Low) / 2
+        hl2 = (high + low) / 2
+
+        basic_upperband = hl2 + (self.multiplier * atr)
+        basic_lowerband = hl2 - (self.multiplier * atr)
+
+        # Step 3: Apply trend-following logic
+        # Final bands adjust based on previous values and price action
+        final_upperband = pd.Series(index=data.index, dtype=float)
+        final_lowerband = pd.Series(index=data.index, dtype=float)
+        supertrend = pd.Series(index=data.index, dtype=float)
+        direction = pd.Series(index=data.index, dtype=int)  # 1=up, -1=down
+
+        # Initialize first values
+        final_upperband.iloc[0] = basic_upperband.iloc[0]
+        final_lowerband.iloc[0] = basic_lowerband.iloc[0]
+        supertrend.iloc[0] = basic_upperband.iloc[0]
+        direction.iloc[0] = -1  # Start bearish
+
+        # Calculate for each subsequent bar
+        for i in range(1, len(data)):
+            # Upper band adjustment
+            if basic_upperband.iloc[i] < final_upperband.iloc[i-1] or close.iloc[i-1] > final_upperband.iloc[i-1]:
+                final_upperband.iloc[i] = basic_upperband.iloc[i]
+            else:
+                final_upperband.iloc[i] = final_upperband.iloc[i-1]
+
+            # Lower band adjustment
+            if basic_lowerband.iloc[i] > final_lowerband.iloc[i-1] or close.iloc[i-1] < final_lowerband.iloc[i-1]:
+                final_lowerband.iloc[i] = basic_lowerband.iloc[i]
+            else:
+                final_lowerband.iloc[i] = final_lowerband.iloc[i-1]
+
+            # Determine Supertrend and direction
+            if close.iloc[i] <= final_upperband.iloc[i]:
+                supertrend.iloc[i] = final_upperband.iloc[i]
+                direction.iloc[i] = -1  # Downtrend
+            else:
+                supertrend.iloc[i] = final_lowerband.iloc[i]
+                direction.iloc[i] = 1  # Uptrend
+
+        # Create indicator values (use Supertrend line)
+        values = self._create_indicator_values(data.index, supertrend.values)
+
+        # Store additional lines
+        additional_lines = {
+            'upperband': final_upperband.values.tolist(),
+            'lowerband': final_lowerband.values.tolist(),
+            'direction': direction.values.tolist()
+        }
+
+        return self._create_result(values, additional_lines)
+
+    def interpret_signal(self, result: IndicatorResult, index: int = -1) -> IndicatorSignal:
+        """
+        Interpret Supertrend signal
+
+        Buy: Price above Supertrend (uptrend)
+        Sell: Price below Supertrend (downtrend)
+        Strong signal on trend flip
+        """
+        supertrend_value = result.values[index].value
+        direction = result.additional_lines['direction'][index]
+
+        # Determine signal based on direction
+        if direction == 1:
+            signal = SignalValue.BUY
+            reasoning = "Price above Supertrend (uptrend)"
+        else:
+            signal = SignalValue.SELL
+            reasoning = "Price below Supertrend (downtrend)"
+
+        # Check for trend flip (strong signal)
+        threshold_crossed = None
+        if index > 0 or abs(index) < len(result):
+            prev_direction = result.additional_lines['direction'][index - 1]
+            if prev_direction == -1 and direction == 1:
+                threshold_crossed = "bullish_flip"
+                reasoning += " [TREND FLIP]"
+            elif prev_direction == 1 and direction == -1:
+                threshold_crossed = "bearish_flip"
+                reasoning += " [TREND FLIP]"
+
+        # Strength: 100 for clear trend, reduce if no flip
+        strength = 100.0 if threshold_crossed else 75.0
+
+        return IndicatorSignal(
+            indicator_name=self.get_name(),
+            timestamp=result.values[index].timestamp,
+            signal=signal,
+            strength=strength,
+            current_value=supertrend_value,
+            threshold_crossed=threshold_crossed,
+            reasoning=reasoning
+        )
+
+
+# ============================================
+# Parabolic SAR (Stop and Reverse)
+# ============================================
+
+class ParabolicSAR(BaseIndicator):
+    """
+    Parabolic SAR (Stop and Reverse)
+
+    Trend-following indicator that provides trailing stop-loss levels
+    SAR dots appear below price in uptrend, above price in downtrend
+
+    Formula:
+    SAR(tomorrow) = SAR(today) + AF × (EP - SAR(today))
+
+    Where:
+    - SAR: Stop and Reverse price
+    - AF: Acceleration Factor (starts at 0.02, increases by 0.02, max 0.20)
+    - EP: Extreme Point (highest high in uptrend, lowest low in downtrend)
+
+    Signals:
+    - SAR below price: Uptrend, hold long
+    - SAR above price: Downtrend, hold short
+    - SAR flip: Strong reversal signal
+
+    Advantages:
+    - Provides automatic trailing stop levels
+    - Clear trend direction
+    - Accelerates with trend strength
+    - Objective exit points
+
+    Best for: Trending markets, trailing stops
+    """
+
+    def __init__(self, params: IndicatorParameters = None):
+        """
+        Initialize Parabolic SAR
+
+        Args:
+            params: Not used much, but kept for consistency
+        """
+        if params is None:
+            params = IndicatorParameters(period=1)  # Not really used
+
+        super().__init__(params)
+
+        # Parabolic SAR parameters
+        self.af_start = 0.02  # Initial acceleration factor
+        self.af_increment = 0.02  # AF increment on new extreme
+        self.af_max = 0.20  # Maximum acceleration factor
+
+    def get_name(self) -> str:
+        return "PSAR"
+
+    def get_category(self) -> IndicatorCategory:
+        return IndicatorCategory.TREND
+
+    def _get_required_columns(self) -> list:
+        return ['high', 'low', 'close']
+
+    def _calculate_values(self, data: pd.DataFrame) -> IndicatorResult:
+        """
+        Calculate Parabolic SAR values
+
+        Complex algorithm that tracks trend and accelerates SAR movement
+        """
+        high = data['high'].values
+        low = data['low'].values
+        close = data['close'].values
+
+        n = len(data)
+
+        # Initialize arrays
+        sar = np.zeros(n)
+        trend = np.zeros(n, dtype=int)  # 1=up, -1=down
+        af = np.zeros(n)
+        ep = np.zeros(n)  # Extreme point
+
+        # Initialize first values
+        # Start with uptrend assumption
+        sar[0] = low[0]
+        trend[0] = 1
+        af[0] = self.af_start
+        ep[0] = high[0]
+
+        # Calculate SAR for each bar
+        for i in range(1, n):
+            # Calculate new SAR
+            sar[i] = sar[i-1] + af[i-1] * (ep[i-1] - sar[i-1])
+
+            # Check for trend reversal
+            if trend[i-1] == 1:  # Was in uptrend
+                # Ensure SAR doesn't go above last two lows
+                sar[i] = min(sar[i], low[i-1], low[i-2] if i >= 2 else low[i-1])
+
+                # Check if trend reversed (price went below SAR)
+                if low[i] < sar[i]:
+                    trend[i] = -1  # Switch to downtrend
+                    sar[i] = ep[i-1]  # SAR jumps to previous EP (high)
+                    ep[i] = low[i]  # New EP is current low
+                    af[i] = self.af_start  # Reset AF
+                else:
+                    trend[i] = 1  # Continue uptrend
+                    ep[i] = max(ep[i-1], high[i])  # Update EP if new high
+
+                    # Increment AF if new extreme point
+                    if ep[i] > ep[i-1]:
+                        af[i] = min(af[i-1] + self.af_increment, self.af_max)
+                    else:
+                        af[i] = af[i-1]
+
+            else:  # Was in downtrend
+                # Ensure SAR doesn't go below last two highs
+                sar[i] = max(sar[i], high[i-1], high[i-2] if i >= 2 else high[i-1])
+
+                # Check if trend reversed (price went above SAR)
+                if high[i] > sar[i]:
+                    trend[i] = 1  # Switch to uptrend
+                    sar[i] = ep[i-1]  # SAR jumps to previous EP (low)
+                    ep[i] = high[i]  # New EP is current high
+                    af[i] = self.af_start  # Reset AF
+                else:
+                    trend[i] = -1  # Continue downtrend
+                    ep[i] = min(ep[i-1], low[i])  # Update EP if new low
+
+                    # Increment AF if new extreme point
+                    if ep[i] < ep[i-1]:
+                        af[i] = min(af[i-1] + self.af_increment, self.af_max)
+                    else:
+                        af[i] = af[i-1]
+
+        # Create indicator values
+        values = self._create_indicator_values(data.index, sar)
+
+        # Additional lines
+        additional_lines = {
+            'trend': trend.tolist(),
+            'af': af.tolist(),
+            'ep': ep.tolist()
+        }
+
+        return self._create_result(values, additional_lines)
+
+    def interpret_signal(self, result: IndicatorResult, index: int = -1) -> IndicatorSignal:
+        """
+        Interpret Parabolic SAR signal
+
+        Buy: Uptrend (SAR below price)
+        Sell: Downtrend (SAR above price)
+        Strong signal on SAR flip
+        """
+        sar_value = result.values[index].value
+        trend = result.additional_lines['trend'][index]
+
+        # Determine signal
+        if trend == 1:
+            signal = SignalValue.BUY
+            reasoning = "PSAR below price (uptrend)"
+        else:
+            signal = SignalValue.SELL
+            reasoning = "PSAR above price (downtrend)"
+
+        # Check for SAR flip (reversal)
+        threshold_crossed = None
+        if index > 0 or abs(index) < len(result):
+            prev_trend = result.additional_lines['trend'][index - 1]
+            if prev_trend == -1 and trend == 1:
+                threshold_crossed = "bullish_reversal"
+                reasoning += " [SAR FLIP]"
+            elif prev_trend == 1 and trend == -1:
+                threshold_crossed = "bearish_reversal"
+                reasoning += " [SAR FLIP]"
+
+        # Strength: 100 on flip, 80 otherwise
+        strength = 100.0 if threshold_crossed else 80.0
+
+        return IndicatorSignal(
+            indicator_name=self.get_name(),
+            timestamp=result.values[index].timestamp,
+            signal=signal,
+            strength=strength,
+            current_value=sar_value,
+            threshold_crossed=threshold_crossed,
+            reasoning=reasoning
+        )

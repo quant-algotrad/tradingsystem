@@ -137,15 +137,24 @@ def _register_built_in_strategies():
     from src.strategy.strategies import (
         MultiIndicatorStrategy,
         MeanReversionStrategy,
-        BreakoutStrategy
+        BreakoutStrategy,
+        TrendFollowingStrategy,
+        MomentumSwingStrategy,
+        IntradayShortStrategy,
+        MultiTimeframeStrategy
     )
 
-    # Register all strategies
+    # Register original strategies
     StrategyFactory.register('MULTI_INDICATOR', MultiIndicatorStrategy)
     StrategyFactory.register('DEFAULT', MultiIndicatorStrategy)  # Default alias
-
     StrategyFactory.register('MEAN_REVERSION', MeanReversionStrategy)
     StrategyFactory.register('BREAKOUT', BreakoutStrategy)
+
+    # Register new advanced strategies
+    StrategyFactory.register('TREND_FOLLOWING', TrendFollowingStrategy)
+    StrategyFactory.register('MOMENTUM_SWING', MomentumSwingStrategy)
+    StrategyFactory.register('INTRADAY_SHORT', IntradayShortStrategy)
+    StrategyFactory.register('MULTI_TIMEFRAME', MultiTimeframeStrategy)
 
     logger.info(f"Registered {len(StrategyFactory._registry)} built-in strategies")
 

@@ -13,9 +13,17 @@ To add a new strategy:
 from .multi_indicator import MultiIndicatorStrategy
 from .mean_reversion import MeanReversionStrategy
 from .breakout import BreakoutStrategy
+from .trend_following import TrendFollowingStrategy
+from .momentum_swing import MomentumSwingStrategy
+from .intraday_short import IntradayShortStrategy
+from .multi_timeframe import MultiTimeframeStrategy
 
 __all__ = [
     'MultiIndicatorStrategy',
     'MeanReversionStrategy',
     'BreakoutStrategy',
+    'TrendFollowingStrategy',
+    'MomentumSwingStrategy',
+    'IntradayShortStrategy',
+    'MultiTimeframeStrategy',
 ]

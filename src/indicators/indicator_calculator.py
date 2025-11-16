@@ -14,7 +14,7 @@ from datetime import datetime
 
 from src.indicators.base_indicator import IIndicator
 from src.indicators.models import MultiIndicatorResult, IndicatorResult
-from src.indicators.trend import SMA, EMA, MACD, ADX
+from src.indicators.trend import SMA, EMA, MACD, ADX, Supertrend, ParabolicSAR
 from src.indicators.momentum import RSI, Stochastic
 from src.indicators.volatility import BollingerBands, ATR
 from src.utils import get_logger
@@ -43,7 +43,10 @@ class IndicatorFactory:
         'stochastic': Stochastic,
         'bollinger_bands': BollingerBands,
         'bb': BollingerBands,  # Alias
-        'atr': ATR
+        'atr': ATR,
+        'supertrend': Supertrend,
+        'psar': ParabolicSAR,
+        'parabolic_sar': ParabolicSAR  # Alias
     }
 
     @classmethod
